@@ -1,10 +1,10 @@
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { App } from "../../deps/thistle/src/apps/base.js";
-import type { Sys } from "../../deps/thistle/src/core/sys.js";
-import { bad } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { App } from "../../thistle/src/apps/base.js";
+import type { Sys } from "../../thistle/src/core/sys.js";
+import { bad } from "../../thistle/src/core/err.js";
 import { esc, narg } from "./util.js";
-import { dec, enc } from "../../deps/thistle/src/io/stream.js";
+import { dec, enc } from "../../thistle/src/io/stream.js";
 
 const src = async (s: Sys, a: string[]): Promise<Array<[string, string]>> => {
   const ps = a.filter(x => x !== "-");

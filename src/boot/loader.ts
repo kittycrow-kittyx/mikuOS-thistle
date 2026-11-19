@@ -1,4 +1,5 @@
-import { withValue } from "../../deps/thistle/src/core/err.js";
+import { BootRenderer } from "./display.js";
+import { withValue } from "../../thistle/src/core/err.js";
 export interface BootTerminal {
   element: HTMLElement | null | null;
   cols: number | null;
@@ -19,26 +20,14 @@ export interface BootApi {
   loadRuntime(url: string): Promise<void>;
 }
 
-interface BootExports extends WebAssembly.Exports {
-  memory: WebAssembly.Memory;
-  boot_start(cols: number, rows: number): void;
-  boot_tick(): void;
-  boot_resize(cols: number, rows: number): void;
-  boot_update(phase: number, done: number, total: number): void;
-  boot_finish(): void;
-}
-
-/* Minimal host bridge. Screen, logo, spinner and progress maths are C/WASM.
- * This script starts before thistle.js and does not import the main runtime. */
+// The early renderer runs before the main runtime bundle.
 (function (global: typeof globalThis & { MikuBoot: BootApi | null }) {
   "use strict";
-  const decoder = new TextDecoder("utf-8");
 
   // xterm.js lays out complete character cells from the left edge. The
   // remaining fractional width ends up on the right, which visibly shifts
   // a centred ANSI panel left. Centre the rendered grid within the actual
   // terminal viewport during boot, then restore its original placement.
-  // The splash artwork and progress UI still render entirely inside WASM.
   function centreBootGrid(terminal: BootTerminal) {
     const host = (terminal.element ?? null);
     if (!host) return { align() {}, restore() {} };
@@ -65,41 +54,26 @@ interface BootExports extends WebAssembly.Exports {
   }
 
   async function create(terminal: BootTerminal, base: string | URL | null = null): Promise<BootDisplay> {
-    const source = new URL("boot.wasm", base || document.baseURI);
-    const response = await fetch(source);
-    if (!response.ok) throw new Error("mikuOS boot.wasm HTTP " + response.status);
-    const bytes = await response.arrayBuffer();
-    let instance: WebAssembly.Instance | null = null;
-    const module = await WebAssembly.instantiate(bytes, {
-      env: { emit(pointer: number, size: number) {
-        if (!instance || size < 0 || size > 20000) return;
-        const memory = (instance.exports.memory ?? null);
-        if (!(memory instanceof WebAssembly.Memory)) return;
-        const data = new Uint8Array(memory.buffer, pointer, size);
-        terminal.write(decoder.decode(data));
-      } }
-    });
-    instance = module.instance;
-    const wasm = instance.exports as BootExports;
+    const renderer = new BootRenderer(text => terminal.write(text));
     let finished = false;
     const alignment = centreBootGrid(terminal);
-    wasm.boot_start(terminal.cols || 60, terminal.rows || 24);
-    const spinner = setInterval(() => { if (!finished) wasm.boot_tick(); }, 150);
+    renderer.start(terminal.cols || 60, terminal.rows || 24);
+    const spinner = setInterval(() => { if (!finished) renderer.tick(); }, 150);
     const resize = withValue(terminal.onResize ?? null, callable => callable.call(terminal, size => {
       alignment.align();
-      wasm.boot_resize(size.cols, size.rows);
+      renderer.resize(size.cols, size.rows);
     }));
     const display: BootDisplay = {
       report(phase: number, done = 0, total = 0) {
-        if (!finished) wasm.boot_update(phase, done ?? 0, total ?? 0);
+        if (!finished) renderer.update(phase, done ?? 0, total ?? 0);
       },
       finish() {
         if (finished) return;
-        wasm.boot_update(8, 0, 0);
+        renderer.update(8, 0, 0);
         finished = true;
         clearInterval(spinner);
         withValue(resize ?? null, value => value.dispose());
-        wasm.boot_finish();
+        renderer.finish();
         alignment.restore();
       },
       fail<T>(error: T) {
@@ -113,7 +87,7 @@ interface BootExports extends WebAssembly.Exports {
           finished = true;
           clearInterval(spinner);
           withValue(resize ?? null, value => value.dispose());
-          wasm.boot_finish();
+          renderer.finish();
           alignment.restore();
         }
       },

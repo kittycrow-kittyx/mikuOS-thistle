@@ -91,8 +91,8 @@ bun src/test/all.ts --hosted-only
 test -s dist/web/root/manifest.json ||
     die "The browser root manifest was not created"
 
-test -s dist/web/teto/teto.wasm ||
-    die "Teto was not built"
+test -s dist/web/thistle.js ||
+    die "Thistle browser runtime was not built"
 
 printf '\n===== Staging repository changes =====\n'
 

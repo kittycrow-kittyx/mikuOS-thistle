@@ -1,10 +1,10 @@
-import type { Kern } from "../../deps/thistle/src/core/kernel.js";
-import { KErr } from "../../deps/thistle/src/core/err.js";
-import type { ProcCred as Cred } from "../../deps/thistle/src/fs/vfs.js";
+import type { Kern } from "../../thistle/src/core/kernel.js";
+import { KErr } from "../../thistle/src/core/err.js";
+import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
 import { BaseName, Cat, Chmod, Chown, Cp, DirName, Find, Ln, Ls, Mkdir, Mv, Pwd, Readlink, Rm, Rmdir, StatApp, Touch } from "./fs.js";
 import { Base64, Cut, Echo, Grep, Printf, Sed, Seq, Sort, Strings, Tail, Tee, Tr, Uniq, Wc, Yes } from "./text.js";
 import { Kill, Ps, Sleep, Time } from "./proc.js";
-import { Clear, DateApp, Df, Dmesg, Env, Expr, FalseApp, FileApp, Free, Help, Hostname, Id, Mount, PrintEnv, TestApp, Thsh, TrueApp, Uname, Uptime, Wasm, Which, Whoami } from "./sys.js";
+import { Clear, DateApp, Df, Dmesg, Env, Expr, FalseApp, FileApp, Free, Help, Hostname, Id, Mount, PrintEnv, TestApp, Thsh, TrueApp, Uname, Uptime, Which, Whoami } from "./sys.js";
 import { Wget } from "./net.js";
 import { AsApp, DisApp, Elf2ThxApp, LdApp, NmApp, ObjdumpApp, SizeApp } from "./asm.js";
 
@@ -139,7 +139,7 @@ export const apps = (k: Kern): void => {
     new Kill(), new Ps(), new Sleep(), new Time(),
     new Wget(),
     new AsApp(), new LdApp(), new Elf2ThxApp(), new DisApp(), new ObjdumpApp(), new NmApp(), new SizeApp(),
-    new Clear(), new DateApp(), new Df(), new Dmesg(), new Env(), new Expr(), new FalseApp(), new FileApp(), new Free(), new Help(), new Hostname(), new Id(), new Mount(), new PrintEnv(), new TestApp(), new TestApp("["), new Thsh(), new Thsh("sh"), new TrueApp(), new Uname(), new Uptime(), new Wasm(), new Which(), new Whoami(),
+    new Clear(), new DateApp(), new Df(), new Dmesg(), new Env(), new Expr(), new FalseApp(), new FileApp(), new Free(), new Help(), new Hostname(), new Id(), new Mount(), new PrintEnv(), new TestApp(), new TestApp("["), new Thsh(), new Thsh("sh"), new TrueApp(), new Uname(), new Uptime(), new Which(), new Whoami(),
   ].forEach(app => k.install(app));
 
   refreshBuiltinRescues(k);

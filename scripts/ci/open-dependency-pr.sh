@@ -3,7 +3,7 @@ set -Eeuo pipefail
 dependency="${1:?dependency name required}"
 revision="${2:?dependency revision required}"
 safe="$(printf '%s' "$dependency" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-')"
-branch="dependencies/${safe}"
+branch="dependencies/thistle-${safe}"
 git config user.name "KITTYX compatibility worker"
 git config user.email "kittyx-bot@users.noreply.github.com"
 git checkout -B "$branch"
@@ -16,5 +16,5 @@ number="$(gh pr list --head "$branch" --json number --jq '.[0].number // empty')
 if [[ -n "$number" ]]; then
   gh pr edit "$number" --title "$title" --body "$body"
 else
-  gh pr create --draft --head "$branch" --base main --title "$title" --body "$body"
+  gh pr create --draft --head "$branch" --base mikuOS-Thistle --title "$title" --body "$body"
 fi

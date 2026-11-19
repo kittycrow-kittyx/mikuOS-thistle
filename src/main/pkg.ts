@@ -1,12 +1,12 @@
-import { ensure } from "../../deps/thistle/src/core/err.js";
+import { ensure } from "../../thistle/src/core/err.js";
 import { readPackage, type PackageEntry as Pe } from "./pkg-format.js";
 import { checksum as hash } from "../core/checksum.js";
 import { rootCred } from "../core/config.js";
 import { hostModule } from "./host-module.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import type { Kern } from "../../deps/thistle/src/core/kernel.js";
-import { fileSum, treeFs } from "../../deps/thistle/src/fs/tree.js";
-import type { TreeEnt } from "../../deps/thistle/src/fs/tree.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import type { Kern } from "../../thistle/src/core/kernel.js";
+import { fileSum, treeFs } from "../../thistle/src/fs/tree.js";
+import type { TreeEnt } from "../../thistle/src/fs/tree.js";
 
 const MAGIC = "THPK";
 export const TOOLCHAIN = "2.1.0-r2";

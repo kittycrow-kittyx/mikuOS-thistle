@@ -1,10 +1,10 @@
 import { boot } from "../main/boot.js";
 import { rootPkg } from "../main/pkg.js";
-import { Exe, codec } from "../asm/fmt.js";
+import { Exe, codec } from "../../thistle/thistle-asm/fmt.js";
 
 const ok: (v: boolean, m: string) => asserts v = (v, m) => { if (!v) throw new Error(m); };
 let out = "", err = "";
-const os = boot({"halt": null, "tree": null, "requireTree": null, "config": null, "account": null, "setId": null, "teto": null, "kernelMode": null, "onBootProgress": null, put: (s, ch) => { if (ch === "err") err += s; else out += s; }, pkg: rootPkg }, null);
+const os = boot({"halt": null, "tree": null, "requireTree": null, "config": null, "account": null, "setId": null, "onBootProgress": null, put: (s, ch) => { if (ch === "err") err += s; else out += s; }, pkg: rootPkg }, null);
 
 const run = async (s: string): Promise<{ code: number; out: string; err: string; ms: number }> => {
   out = ""; err = ""; const at = Date.now(), code = await os.run(s);

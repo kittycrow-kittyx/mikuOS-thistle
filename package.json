@@ -23,10 +23,9 @@
     "sync:base": "python3 scripts/release/sync-thistle-base.py",
     "audit:base": "python3 scripts/release/sync-thistle-base.py --check",
     "git:upload": "bash scripts/release/git-upload.sh",
-    "test:node39": "bash scripts/ci/test-node39-parity.sh",
     "check:scripts": "bun --bun tsc --noEmit -p tsconfig.tools.json",
     "guards": "bun run prepare:thistle && bun run guards:verified",
-    "prepare:thistle": "git submodule update --init --recursive deps/thistle && bash scripts/ci/verify-thistle-pin.sh",
+    "prepare:thistle": "git submodule update --init --recursive thistle && bash scripts/ci/verify-thistle-pin.sh",
     "build:thistle:verified": "bun run clean && bun run guards:verified && bun run check:scripts && bun --bun tsc --noEmit -p tsconfig.json && bun src/tool/post.ts",
     "guards:verified": "bash scripts/ci/guards.sh",
     "test:boot": "bun scripts/ci/test-canonical-boot.ts"

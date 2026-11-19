@@ -1,5 +1,5 @@
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
 import type { Shell } from "./shell.js";
 import { keyMatches } from "./keys.js";
 

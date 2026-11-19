@@ -1,24 +1,20 @@
-name: Build and deploy mikuOS to GitHub Pages
+name: Validate Thistle browser build
 
 on:
   push:
     branches:
-      - main
-      - mikuOS-Teto
+      - mikuOS-Thistle
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: github-pages
+  group: thistle-browser
   cancel-in-progress: false
 
 jobs:
   build:
-    if: github.ref_name == github.event.repository.default_branch
     name: Build static mikuOS
     runs-on: ubuntu-latest
 
@@ -56,8 +52,6 @@ jobs:
           test -s dist/web/thistle.js
           test -s dist/web/bootloader.js
           test -s dist/web/boot-standalone.js
-          test -s dist/web/teto/teto.wasm
-          test -s dist/web/teto/teto-threads.wasm
           test -s dist/web/root/manifest.json
 
           touch dist/web/.nojekyll
@@ -65,24 +59,8 @@ jobs:
           echo "Static mikuOS build verified:"
           find dist/web -maxdepth 2 -type f -printf '%p\n' | sort
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v4
+      - name: Upload browser build
+        uses: actions/upload-artifact@v4
         with:
+          name: mikuos-thistle-browser
           path: dist/web
-
-  deploy:
-    name: Deploy GitHub Pages
-    needs: build
-    runs-on: ubuntu-latest
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Deploy mikuOS
-        id: deployment
-        uses: actions/deploy-pages@v4

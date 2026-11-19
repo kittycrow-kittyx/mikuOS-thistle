@@ -1,6 +1,6 @@
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { elf } from "../elf/elf.js";
-import { codec } from "../asm/fmt.js";
+import { codec } from "../../thistle/thistle-asm/fmt.js";
 
 const av = process.argv.slice(2);
 const src = av[0] ?? null;

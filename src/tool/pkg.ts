@@ -1,7 +1,7 @@
 import type { PackageEntry as Pe } from "../main/pkg-format.js";
 import { checksum as hash } from "../core/checksum.js";
 import { hostModule } from "../main/host-module.js";
-import { fileSum } from "../../deps/thistle/src/fs/tree.js";
+import { fileSum } from "../../thistle/src/fs/tree.js";
 
 interface Dent { name: string; }
 interface St {

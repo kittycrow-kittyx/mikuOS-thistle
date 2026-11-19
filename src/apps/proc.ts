@@ -1,9 +1,9 @@
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { App } from "../../deps/thistle/src/apps/base.js";
-import type { Sys } from "../../deps/thistle/src/core/sys.js";
-import type { Sig } from "../../deps/thistle/src/core/proc.js";
-import { bad } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { App } from "../../thistle/src/apps/base.js";
+import type { Sys } from "../../thistle/src/core/sys.js";
+import type { Sig } from "../../thistle/src/core/proc.js";
+import { bad } from "../../thistle/src/core/err.js";
 import { narg } from "./util.js";
 
 // Distinct commands deliberately implement the shared App contract.

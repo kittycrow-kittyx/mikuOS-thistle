@@ -1,19 +1,19 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { ensure } from "../../deps/thistle/src/core/err.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { App } from "../../deps/thistle/src/apps/base.js";
-import type { Sys } from "../../deps/thistle/src/core/sys.js";
-import { bad } from "../../deps/thistle/src/core/err.js";
-import { norm } from "../../deps/thistle/src/fs/vfs.js";
-import { Asm } from "../asm/asm.js";
-import { Link } from "../asm/link.js";
-import { Bin, Exe, Obj, codec } from "../asm/fmt.js";
-import type { Rel, Sec, Sym } from "../asm/fmt.js";
-import { decode, I_SZ, text } from "../asm/isa.js";
-import { decode64, I64_SZ, text64 } from "../asm/isa64.js";
-import { hex } from "../asm/syn.js";
+import { ensure } from "../../thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { App } from "../../thistle/src/apps/base.js";
+import type { Sys } from "../../thistle/src/core/sys.js";
+import { bad } from "../../thistle/src/core/err.js";
+import { norm } from "../../thistle/src/fs/vfs.js";
+import { Asm } from "../../thistle/thistle-asm/asm.js";
+import { Link } from "../../thistle/thistle-asm/link.js";
+import { Bin, Exe, Obj, codec } from "../../thistle/thistle-asm/fmt.js";
+import type { Rel, Sec, Sym } from "../../thistle/thistle-asm/fmt.js";
+import { decode, I_SZ, text } from "../../thistle/thistle-asm/isa.js";
+import { decode64, I64_SZ, text64 } from "../../thistle/thistle-asm/isa64.js";
+import { hex } from "../../thistle/thistle-asm/syn.js";
 import { elf } from "../elf/elf.js";
 
 const dir = (p: string): string => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) || "/" : ".";

@@ -1,13 +1,11 @@
-import { withValue } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
 import { boot } from "./boot.js";
 import type { Host, Os } from "./boot.js";
 import type { SystemConfig } from "../core/config.js";
-import type { Tree } from "../../deps/thistle/src/fs/tree.js";
-import { Net } from "../../deps/thistle/src/net/net.js";
-import { FetchDev } from "../../deps/thistle/src/net/host-fetch.js";
+import type { Tree } from "../../thistle/src/fs/tree.js";
+import { Net } from "../../thistle/src/net/net.js";
+import { FetchDev } from "../../thistle/src/net/host-fetch.js";
 import { LineEditor } from "../sh/editor.js";
-import type { TetoImageProvider } from "../teto/loader.js";
-import type { KernelMode } from "../teto/provider.js";
 
 export interface WebSessionOutput {
   write(text: string): void;
@@ -18,8 +16,6 @@ export interface WebSessionOptions {
   config: SystemConfig;
   tree: Tree | null;
   net: Net | null;
-  kernelMode: KernelMode | null;
-  teto: TetoImageProvider | null;
   onBootProgress: ((phase: number) => void) | null;
 }
 
@@ -40,9 +36,7 @@ export class WebSession {
       config: options.config,
       account: options.config.accounts.web,
       setId: true,
-      kernelMode: options.kernelMode ?? "thistle",
       onBootProgress: options.onBootProgress,
-      teto: options.teto,
     };
 
     if (options.tree) host.tree = options.tree;

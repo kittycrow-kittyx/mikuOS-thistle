@@ -1,7 +1,7 @@
 import { readTreeManifest } from "../../src/fs/tree-meta.js";
 import type { TreeMeta as Entry } from "../../src/fs/tree-meta.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
 import { readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 

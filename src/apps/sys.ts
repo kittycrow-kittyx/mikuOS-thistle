@@ -1,15 +1,15 @@
-import { ensure } from "../../deps/thistle/src/core/err.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { App } from "../../deps/thistle/src/apps/base.js";
-import type { Sys } from "../../deps/thistle/src/core/sys.js";
-import { bad } from "../../deps/thistle/src/core/err.js";
-import { dec } from "../../deps/thistle/src/io/stream.js";
+import { ensure } from "../../thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { App } from "../../thistle/src/apps/base.js";
+import type { Sys } from "../../thistle/src/core/sys.js";
+import { bad } from "../../thistle/src/core/err.js";
+import { dec } from "../../thistle/src/io/stream.js";
 import { size } from "./util.js";
 import { Shell, ShExit } from "../sh/shell.js";
 import { LineEditor } from "../sh/editor.js";
-import type { Tty } from "../../deps/thistle/src/io/tty.js";
-import { Exe, codec, isExe, isObj } from "../asm/fmt.js";
+import type { Tty } from "../../thistle/src/io/tty.js";
+import { Exe, codec, isExe, isObj } from "../../thistle/thistle-asm/fmt.js";
 
 // Distinct commands deliberately implement the shared App contract.
 //@cg-expect-warning
@@ -159,7 +159,7 @@ export class Help extends App {
     await s.out("mikuOS userland commands:\n\n");
     const q = s.apps();
     for (let i = 0; i < q.length; i += 3) await s.out(q.slice(i, i + 3).map(x => x.name.padEnd(12)).join("") + "\n");
-    await s.out("\nShell built-ins: : command cd export unset set alias unalias history jobs fg wait umask exit reboot\nUse 'help name' or 'name --help' for details. Try 'hello.wasm'.\n");
+    await s.out("\nShell built-ins: : command cd export unset set alias unalias history jobs fg wait umask exit reboot\nUse 'help name' or 'name --help' for details.\n");
     return 0;
   }
 }
@@ -188,13 +188,7 @@ default: { k = x.startsWith("#!") ? `script, ${(x.split("\n")[0] ?? null)}` : b.
 
 // Distinct commands deliberately implement the shared App contract.
 //@cg-expect-warning
-export class Wasm extends App {
-  constructor() { super("wasm", "Execute a WebAssembly/WASI binary.", "wasm path [arg ...]"); }
-  override async run(s: Sys, a: string[]): Promise<number> { const bin = a[0] ?? bad("EINVAL", "wasm: binary required"); const p = s.start(bin, a.slice(1)); return s.wait(p.pid); }
-}
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Thsh extends App {
   constructor(name = "thsh") { super(name, "Run the Thistle command shell.", `${name} [-c command] [script [arg ...]]`); }
   // App.run is the required polymorphic command entry point, including stateless commands.

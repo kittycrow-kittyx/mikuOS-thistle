@@ -3,13 +3,9 @@
 The [architecture](architecture.md) describes the runtime and kernel boundary. See [build instructions](build.md) for preparing the host tools and validating source changes.
 
 - [core/identity](modules/core/identity.md)
-- [wasm/demo](modules/wasm/demo.md)
 - [core/release](modules/core/release.md)
-- [tool/teto-build](modules/tool/teto-build.md)
-- [tool/baguette](modules/tool/baguette.md)
 - [tool/host](modules/tool/host.md)
 - [tool/elf2thx](modules/tool/elf2thx.md)
-- [tool/teto-web](modules/tool/teto-web.md)
 - [sh/history](modules/sh/history.md)
 - [sh/keys](modules/sh/keys.md)
 - [apps/util](modules/apps/util.md)
@@ -51,10 +47,6 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 - [sh/shell](modules/sh/shell.md)
 - [test/all](modules/test/all.md)
 - [test/bun](modules/test/bun.md)
-- [test/teto-worker](modules/test/teto-worker.md)
-- [teto/loader](modules/teto/loader.md)
-- [teto/provider](modules/teto/provider.md)
-- [teto/web-smoke](modules/teto/web-smoke.md)
 - [tool/pkg](modules/tool/pkg.md)
 - [tool/post](modules/tool/post.md)
 
@@ -62,4 +54,7 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 
 ## Canonical kernel
 
-The pinned `deps/thistle` owns Kern, Sys, processes, scheduling, VFS, network policy, streams, guest VMs and WASI. mikuOS imports these modules directly and supplies distribution configuration, userland, terminal UI and persistence adapters. See [canonical kernel integration](canonical-kernel.md).
+The pinned `thistle` owns Kern, Sys, processes, scheduling, VFS, network policy, streams, guest VMs and WASI. mikuOS imports these modules directly and supplies distribution configuration, userland, terminal UI and persistence adapters. See [canonical kernel integration](canonical-kernel.md).
+
+- [Boot display](modules/boot/display.md)
+- [Boot artwork](modules/boot/logo.md)

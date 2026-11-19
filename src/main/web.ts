@@ -1,11 +1,9 @@
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
 import { DEFAULT_CONFIG } from "../core/config.js";
 import type { SystemConfig } from "../core/config.js";
 import { WebSession } from "./websession.js";
 import { staticBrowserConfig } from "./config.js";
-import { fetchTetoProvider, kernelMode } from "../teto/provider.js";
-import type { KernelMode } from "../teto/provider.js";
 import { WebTree } from "./webtree.js";
 
 interface TerminalCtor {
@@ -50,14 +48,12 @@ interface LaunchOptions {
   boot: BootDisplay | null;
   config: SystemConfig | null;
   persistence: boolean | null;
-  kernel: KernelMode | null;
-  tetoBase: string | URL | null;
   rootBase: string | URL | null;
 }
 
 interface LaunchHandle {
   persistent: boolean;
-  kernel: "thistle" | "teto";
+  kernel: "thistle";
   session: WebSession;
   dispose(): void;
 }
@@ -104,7 +100,7 @@ const terminalNode = (): HTMLElement | null =>
   document.querySelector<HTMLElement>("[data-thistle-terminal]") ??
   document.querySelector<HTMLElement>("#terminal");
 
-export const launchThistle = async (options: LaunchOptions = {"terminal": null, "boot": null, "config": null, "persistence": null, "kernel": null, "tetoBase": null, "rootBase": null}): Promise<LaunchHandle> => {
+export const launchThistle = async (options: LaunchOptions = {"terminal": null, "boot": null, "config": null, "persistence": null, "rootBase": null}): Promise<LaunchHandle> => {
   const node = options.terminal ?? terminalNode();
   if (!node) throw new Error("missing terminal element");
   const provided = typeof node === "object" && node !== null && "write" in node && "onData" in node;
@@ -154,11 +150,6 @@ export const launchThistle = async (options: LaunchOptions = {"terminal": null, 
   const bootScreen = options.boot ?? (await (withValue(globals.MikuBoot ?? null, value => value.create(term, new URL("./", document.baseURI))) ?? null) ?? null);
   withValue(bootScreen ?? null, value => value.report(1, null, null));
   const config = options.config ?? await staticBrowserConfig(null);
-  const query = typeof location === "undefined" ? null : new URL(location.href).searchParams.get("kernel");
-  const requestedKernel = options.kernel ?? kernelMode(query, "thistle");
-  const teto = requestedKernel === "thistle"
-    ? null
-    : fetchTetoProvider(options.tetoBase ?? new URL("./teto/", document.baseURI));
   const tree = new WebTree(
     options.rootBase ?? new URL("./root/", document.baseURI),
     options.persistence !== false,
@@ -174,8 +165,7 @@ export const launchThistle = async (options: LaunchOptions = {"terminal": null, 
   } };
   const session = new WebSession(
     terminalOutput,
-    {"net": null, config, tree, kernelMode: requestedKernel,
-      teto,
+    {"net": null, config, tree,
       onBootProgress: phase => (withValue(bootScreen ?? null, value => value.report(phase, null, null)) ?? null),
     },
   );
@@ -235,9 +225,7 @@ export const launchThistle = async (options: LaunchOptions = {"terminal": null, 
   if (typeof document !== "undefined") {
     (withValue(document.documentElement ?? null, value => value.dataset)) && (document.documentElement.dataset.kernel = session.os.activeKernelMode);
     const status = document.querySelector<HTMLElement>("#runtime-status");
-    (status) && (status.textContent = session.os.activeKernelMode === "teto"
-      ? "Teto WASM core active"
-      : "Thistle TypeScript core active");
+    (status) && (status.textContent = "Thistle TypeScript kernel active");
   }
   const command = typeof location === "undefined" ? null : new URL(location.href).searchParams.get("command");
   if (command) {

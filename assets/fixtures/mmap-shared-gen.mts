@@ -2,7 +2,7 @@ import { writeFile, chmod } from "node:fs/promises";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { codec, Exe } from "../../src/asm/fmt.ts";
+import { codec, Exe } from "../../thistle/thistle-asm/fmt.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, "../mmap-shared.thx");

@@ -1,18 +1,16 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { ensure } from "../../deps/thistle/src/core/err.js";
+import { ensure } from "../../thistle/src/core/err.js";
 import { hostModule } from "./host-module.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
 import { boot } from "./boot.js";
-import { isExe } from "../asm/fmt.js";
+import { isExe } from "../../thistle/thistle-asm/fmt.js";
 import { DirTree } from "./dir.js";
 import type { Host } from "./boot.js";
 import { hostConfig } from "./config.js";
 import { LineEditor } from "../sh/editor.js";
 import { localSessionPlan, superviseLocalLogin } from "./session.js";
-import { cachedTetoProvider, kernelMode } from "../teto/provider.js";
-import type { TetoImageProvider, TetoVariant } from "../teto/loader.js";
 
 interface Hp {
   argv: string[];
@@ -39,20 +37,8 @@ const config = await hostConfig(null);
 const session = localSessionPlan(config);
 const kernelArg = (withValue((hp.argv.find(value => value.startsWith("--kernel=")) ?? null) ?? null, value => value.slice("--kernel=".length)) ?? null);
 const kernelIndex = hp.argv.indexOf("--kernel");
-const requestedKernel = kernelMode(kernelArg ?? (kernelIndex >= 0 ? (hp.argv[kernelIndex + 1] ?? null) : (withValue(hp.env ?? null, value => (value.MIKUOS_KERNEL ?? null)) ?? null)), "thistle");
-if (kernelIndex >= 0 && !(hp.argv[kernelIndex + 1] ?? null)) throw new Error("--kernel needs thistle, teto or auto");
-const tetoRoot = new URL("../../dist/teto/", import.meta.url);
-const rawTetoProvider: TetoImageProvider = {
-  async load(variant: TetoVariant): Promise<Uint8Array<ArrayBuffer>> {
-    const name = variant === "threads" ? "teto-threads.wasm" : "teto.wasm";
-    const url = new URL(name, tetoRoot);
-    const bytes = bh
-      ? new Uint8Array(await bh.file(url.pathname).arrayBuffer())
-      : Uint8Array.from(await (await hostModule("node:fs/promises")).readFile(url.pathname));
-    return Uint8Array.from(bytes);
-  },
-};
-const tetoProvider = requestedKernel === "thistle" ? null : cachedTetoProvider(rawTetoProvider);
+const requestedKernel = kernelArg ?? (kernelIndex >= 0 ? (hp.argv[kernelIndex + 1] ?? null) : null) ?? (withValue(hp.env ?? null, value => value.MIKUOS_KERNEL ?? null) ?? null) ?? "thistle";
+if (requestedKernel !== "thistle") throw new Error("This branch requires --kernel=thistle");
 let live = true;
 const noRoot = hp.argv.includes("--no-root"), di = hp.argv.indexOf("--root");
 const root = di >= 0 ? (hp.argv[di + 1] ?? null) : withValue(hp.env ?? null, value => (value.MIKUOS_ROOT ?? null)) ?? (withValue(hp.env ?? null, value => (value.THISTLE_ROOT ?? null)) ?? null) ?? new URL("../../.thistle", import.meta.url);
@@ -62,8 +48,6 @@ const host: Host = {"tree": null, "requireTree": null, "pkg": null, "onBootProgr
   config,
   account: session.account,
   setId: true,
-  kernelMode: requestedKernel,
-  teto: tetoProvider,
 };
 if (session.command && !hp.stdin.isTTY) {
   throw new Error("local login mode requires a terminal");
@@ -80,13 +64,12 @@ resize();
 withValue(hp.stdout.on ?? null, callable => callable.call(hp.stdout, "resize", resize));
 await os.hello();
 
-const wi = hp.argv.findIndex(x => x === "--wasm" || x === "--bin");
+const wi = hp.argv.findIndex(x => x === "--bin");
 if (wi >= 0) {
   const src = (hp.argv[wi + 1] ?? null);
   ensure(src, () => { throw new Error(`${(hp.argv[wi] ?? null)} needs a host file path`); });
   const x = bh ? new Uint8Array(await bh.file(src).arrayBuffer()) : await (await hostModule("node:fs/promises")).readFile(src);
-  const wasm = WebAssembly.validate(Uint8Array.from(x) as BufferSource);
-  ensure(!((hp.argv[wi] ?? null) === "--wasm" ? !wasm : !wasm && !isExe(x)), () => { throw new Error(`${src} is not a supported guest binary`); });
+  ensure(isExe(x), () => { throw new Error(`${src} is not a supported guest binary`); });
   const name = hp.argv[wi + 2] ?? (src.split(/[\\/]/).at(-1) ?? null) ?? "guest.bin";
   const p = os.load(name, x);
   await os.flush();

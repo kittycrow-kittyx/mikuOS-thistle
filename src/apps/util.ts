@@ -1,4 +1,4 @@
-import { bad, requireValue } from "../../deps/thistle/src/core/err.js";
+import { bad, requireValue } from "../../thistle/src/core/err.js";
 
 export const esc = (s: string): string => s.replace(/\\([\\abefnrtv0])/g, (_m, c: string) => ({
   "\\": "\\", a: "\x07", b: "\b", e: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v", "0": "\0",

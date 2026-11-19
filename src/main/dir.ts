@@ -1,9 +1,9 @@
 import { readTreeManifest, type TreeMeta as Meta, type TreeManifest as Man } from "../fs/tree-meta.js";
 import { hostModule } from "./host-module.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { fileSum } from "../../deps/thistle/src/fs/tree.js";
-import type { Tree, TreeEnt } from "../../deps/thistle/src/fs/tree.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { fileSum } from "../../thistle/src/fs/tree.js";
+import type { Tree, TreeEnt } from "../../thistle/src/fs/tree.js";
 import { ROOT_IMAGE_VERSION } from "./image.js";
 
 interface Dent { name: string; isDirectory(): boolean; isFile(): boolean; isSymbolicLink(): boolean; }

@@ -10,11 +10,6 @@ export const IDENTITY = {
     expansion: "Thistle Hosted Interactive Shell-based TypeScript Live Environment.",
     role: "sole authoritative human-written TypeScript kernel source",
   },
-  teto: {
-    name: "Teto",
-    expansion: "Teto Executes Thistle Optimally.",
-    role: "generated optimised WebAssembly form of Thistle",
-  },
   guest: {
     architecture: "Thistle64 RV64GC",
     executable: "THX",

@@ -1,5 +1,5 @@
-import { ensure } from "../../deps/thistle/src/core/err.js";
-import { Exe } from "../asm/fmt.js";
+import { ensure } from "../../thistle/src/core/err.js";
+import { Exe } from "../../thistle/thistle-asm/fmt.js";
 
 const EI_NIDENT = 16;
 const ET_EXEC = 2;

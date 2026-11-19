@@ -1,16 +1,15 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { bad, KErr } from "../../deps/thistle/src/core/err.js";
-import type { Kern } from "../../deps/thistle/src/core/kernel.js";
-import type { ProcCred as Cred } from "../../deps/thistle/src/fs/vfs.js";
-import { Dir } from "../../deps/thistle/src/fs/vfs.js";
-import { dec, enc } from "../../deps/thistle/src/io/stream.js";
+import { bad, KErr } from "../../thistle/src/core/err.js";
+import type { Kern } from "../../thistle/src/core/kernel.js";
+import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
+import { Dir } from "../../thistle/src/fs/vfs.js";
+import { dec, enc } from "../../thistle/src/io/stream.js";
 import { apps, refreshBuiltinRescues } from "../apps/index.js";
-import { demoWasm } from "../wasm/demo.js";
-import { Asm } from "../asm/asm.js";
-import { Link } from "../asm/link.js";
-import { codec } from "../asm/fmt.js";
-import { CRT032_TAS, CRT0_TAS, FIB_TAS, HELLO32_TAS, HELLO_TAS, SYS32_TAS, SYS_TAS } from "../asm/lib.js";
+import { Asm } from "../../thistle/thistle-asm/asm.js";
+import { Link } from "../../thistle/thistle-asm/link.js";
+import { codec } from "../../thistle/thistle-asm/fmt.js";
+import { CRT032_TAS, CRT0_TAS, FIB_TAS, HELLO32_TAS, HELLO_TAS, SYS32_TAS, SYS_TAS } from "../../thistle/thistle-asm/lib.js";
 
 const r: Cred = { uid: 0, gid: 0, ruid: 0, euid: 0, suid: 0, rgid: 0, egid: 0, sgid: 0, groups: [0] };
 
@@ -187,8 +186,6 @@ export const image = (k: Kern): void => {
 
   apps(k);
   k.fs.symlink("/bin/thsh", "/bin/-sh", "/", r);
-  f("/usr/bin/hello.wasm", demoWasm(), 0o755);
-  k.fs.symlink("/usr/bin/hello.wasm", "/bin/hello.wasm", "/", r);
   const inc = (name: string): { src: string; file: string } => ({ src: k.fs.read(name, "/", r), file: name });
   const crt = new Asm(inc, {"defs": {}, "arch": "thistle64",  debug: true }).run(CRT0_TAS, "/usr/lib/thistle/crt0.tas").obj;
   f("/usr/lib/thistle/crt0.to", codec.pack(crt));
@@ -213,7 +210,6 @@ export const image = (k: Kern): void => {
   f("/usr/bin/hello32.txe", codec.pack(new Link().run([old], {"entry": null, "base": null, "mem": null,  names: ["hello32.to"] }).exe), 0o755);
   k.fs.symlink("/usr/bin/hello32.txe", "/bin/hello32.txe", "/", r);
   k.log("vfs: root image mounted read-write");
-  k.log("wasm: WASI preview1 loader registered");
   k.log("native: thistle64 loader and Thistle 1 compatibility registered");
   k.log("net: HTTP transport registered");
   k.log(`userland: ${k.apps.size} executables installed`);

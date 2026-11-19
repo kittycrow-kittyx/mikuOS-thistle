@@ -1,6 +1,6 @@
 # Canonical Thistle integration
 
-The `deps/thistle` gitlink records the kernel revision. `project.dependencies.json` records the same commit. mikuOS imports the kernel classes and operations from that checkout.
+The `thistle` gitlink records the kernel revision. `project.dependencies.json` records the same commit. mikuOS imports the kernel classes and operations from that checkout.
 
 `Os` composes the pinned `Kern` with distribution configuration, installed userland applications, terminal endpoints and persistence. Its root is the custom `.thistle.base` plus a separate writable overlay. The immutable base is never used as the writable root.
 

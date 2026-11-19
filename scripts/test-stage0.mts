@@ -2,7 +2,7 @@ import { parseJson } from "../src/core/json.js";
 import { boot } from "../src/main/boot.ts";
 import { DEFAULT_CONFIG } from "../src/core/config.ts";
 
-const os = boot({"halt": null, "tree": null, "requireTree": null, "pkg": null, "account": null, "setId": null, "teto": null, "kernelMode": null, "onBootProgress": null, config: DEFAULT_CONFIG,
+const os = boot({"halt": null, "tree": null, "requireTree": null, "pkg": null, "account": null, "setId": null, "onBootProgress": null, config: DEFAULT_CONFIG,
   put: () => {},
 }, null);
 

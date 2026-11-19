@@ -1,24 +1,22 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { HostWasiRunner } from "../../deps/thistle/src/wasm/host-wasi.js";
-import { hostNet } from "../../deps/thistle/src/net/host-fetch.js";
-import { ensure } from "../../deps/thistle/src/core/err.js";
-import { Lim } from "../../deps/thistle/src/core/cap.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { Kern } from "../../deps/thistle/src/core/kernel.js";
-import { Sys } from "../../deps/thistle/src/core/sys.js";
-import { Tty } from "../../deps/thistle/src/io/tty.js";
+import { HostWasiRunner } from "../../thistle/src/wasm/host-wasi.js";
+import { hostNet } from "../../thistle/src/net/host-fetch.js";
+import { ensure } from "../../thistle/src/core/err.js";
+import { Lim } from "../../thistle/src/core/cap.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { Kern } from "../../thistle/src/core/kernel.js";
+import { Sys } from "../../thistle/src/core/sys.js";
+import { Tty } from "../../thistle/src/io/tty.js";
 import { Shell, ShExit } from "../sh/shell.js";
 import { image, live, migrateImage, ROOT_IMAGE_VERSION } from "./image.js";
-import { norm } from "../../deps/thistle/src/fs/vfs.js";
-import { Net } from "../../deps/thistle/src/net/net.js";
-import { treeFs } from "../../deps/thistle/src/fs/tree.js";
-import type { Tree } from "../../deps/thistle/src/fs/tree.js";
+import { norm } from "../../thistle/src/fs/vfs.js";
+import { Net } from "../../thistle/src/net/net.js";
+import { treeFs } from "../../thistle/src/fs/tree.js";
+import type { Tree } from "../../thistle/src/fs/tree.js";
 import { DEFAULT_CONFIG } from "../core/config.js";
 import type { AccountConfig, SystemConfig } from "../core/config.js";
-import type { TetoImageProvider } from "../teto/loader.js";
-import type { KernelMode } from "../teto/provider.js";
 
 export type Ch = "out" | "err" | "sys" | "in";
 
@@ -31,8 +29,6 @@ export interface Host {
   config: SystemConfig | null;
   account: AccountConfig | null;
   setId: boolean | null;
-  teto: TetoImageProvider | null;
-  kernelMode: KernelMode | null;
   /** Real browser startup milestones; no simulated elapsed-time progress. */
   onBootProgress: ((phase: number) => void) | null;
 }
@@ -45,7 +41,7 @@ export class Os {
   readonly tty;
   readonly ready: Promise<void>;
   busy = false;
-  activeKernelMode: "thistle" | "teto" = "thistle";
+  readonly activeKernelMode = "thistle";
   private save = Promise.resolve();
 
   constructor(readonly host: Host, net = hostNet()) {
@@ -67,23 +63,9 @@ export class Os {
 
   async hello(): Promise<void> {
     await this.ready;
-    if (this.activeKernelMode === "teto") {
-      const banner = this.k.config.messages.nativeBanner;
-
-      (banner) && (await this.host.put(
-          `${banner}${banner.endsWith("\n") ? "" : "\n"}`,
-          "sys",
-        ));
-    }
     if (!this.sh.prefs.showWelcome) return;
     try {
-      const kernelSource = this.activeKernelMode === "teto"
-        ? "Teto"
-        : "Thistle";
-      const motd = this.s.read("/etc/motd").replace(
-        /Kernel source: (?:Thistle|Teto)\./,
-        `Kernel source: ${kernelSource}.`,
-      );
+      const motd = this.s.read("/etc/motd");
       await this.host.put(motd, "sys");
     }
     // This documented best-effort fallback intentionally continues after the optional operation fails.
@@ -116,7 +98,7 @@ export class Os {
   complete(line: string): { line: string; list: string[] } { return this.sh.complete(line); }
 
   load(name: string, b: Uint8Array, mode = 0o755): string {
-    const safe = name.replace(/[^A-Za-z0-9._+-]/g, "_") || "module.wasm";
+    const safe = name.replace(/[^A-Za-z0-9._+-]/g, "_") || "guest.thx";
     const p = norm(`/tmp/${safe}`);
     try { this.s.writeb(p, b); } catch { this.s.mkfile(p, b, mode); }
     this.s.chmod(p, mode);
@@ -168,9 +150,6 @@ export class Os {
 
   private async configureKernelMode(): Promise<void> {
     withValue(this.host.onBootProgress ?? null, callable => callable.call(this.host, 5));
-    const requested = this.host.kernelMode ?? "thistle";
-    ensure(requested !== "teto", () => { throw new Error("This branch uses the pinned Thistle kernel; Teto is not available"); });
-    this.activeKernelMode = "thistle";
     this.k.name = "Thistle";
     this.p.env.set("MIKUOS_KERNEL_MODE", "thistle");
     this.p.env.delete("THISTLE_RV_CORE");
@@ -210,4 +189,4 @@ export class Os {
   }
 }
 
-export const boot = (host: Pick<Host, "put"> & Partial<Host>, net: Net | null = null): Os => new Os({ halt: null, tree: null, requireTree: null, pkg: null, config: null, account: null, setId: null, kernelMode: null, teto: null, onBootProgress: null, ...host }, net ?? hostNet());
+export const boot = (host: Pick<Host, "put"> & Partial<Host>, net: Net | null = null): Os => new Os({ halt: null, tree: null, requireTree: null, pkg: null, config: null, account: null, setId: null, onBootProgress: null, ...host }, net ?? hostNet());

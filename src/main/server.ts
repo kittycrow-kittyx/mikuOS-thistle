@@ -1,4 +1,4 @@
-import { withValue } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
 import { hostConfig } from "./config.js";
 
 interface BServer {
@@ -34,7 +34,6 @@ const mime: Record<string, string> = {
   ".39": "application/x-thistle-executable",
   ".thx": "application/x-thistle-executable",
   ".txe": "application/x-thistle-executable",
-  ".wasm": "application/wasm",
 };
 
 const extension = (path: string): string => {
@@ -48,11 +47,9 @@ const allowed = (path: string): boolean =>
   path === "/thistle.js" ||
   path === "/mikuos.config.json" ||
   path === "/thistle.config.json" ||
-  path === "/teto-test.html" ||
-  path === "/teto-test.js" ||
   path.startsWith("/vendor/") ||
   path.startsWith("/assets/") ||
-  path.startsWith("/teto/");
+  path.startsWith("/root/");
 
 export const app: BServer = bun.serve({
   hostname,

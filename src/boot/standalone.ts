@@ -1,4 +1,4 @@
-import { withValue } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
 import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import type { FitAddon as XtermFitAddon } from "@xterm/addon-fit";
 import type { BootApi } from "./loader.js";
@@ -12,8 +12,7 @@ const globals = globalThis as typeof globalThis & {
   MikuOS: Awaited<ReturnType<typeof launchThistle>> | null;
 };
 
-/* Standalone mikuOS starts the tiny C/WASM boot screen first.
- * Only after the screen is visible does the main thistle.js download begin. */
+// Show boot progress before loading the Thistle browser runtime.
 (async () => {
   const el = document.querySelector<HTMLElement>("[data-thistle-terminal]") ||
     document.querySelector<HTMLElement>("#terminal");
@@ -31,7 +30,7 @@ const globals = globalThis as typeof globalThis & {
   const boot = await globals.MikuBoot.create({ element: term.element ?? null, cols: term.cols, rows: term.rows, write: text => term.write(text), onResize: listener => term.onResize(listener) }, new URL("./", document.baseURI));
   try {
     await globals.MikuBoot.loadRuntime("./thistle.js");
-    const runtime = await globals.Thistle.launchThistle({"config": null, "persistence": null, "kernel": null, "tetoBase": null, "rootBase": null,  terminal: term, boot });
+    const runtime = await globals.Thistle.launchThistle({"config": null, "persistence": null, "rootBase": null,  terminal: term, boot });
     globals.MikuOS = runtime;
   } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
     boot.fail(error);

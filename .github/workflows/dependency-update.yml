@@ -27,6 +27,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
         with:
+          ref: mikuOS-Thistle
           submodules: recursive
           fetch-depth: 0
       - name: Set up Bun
@@ -41,7 +42,7 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Compatibility suite
-        run: bun run build && bun run test
+        run: bun run test && bun run test:boot
       - name: Open or update approval-only pull request
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,8 +1,8 @@
 import { IDENTITY } from "./identity.js";
-import { DEFAULT_CONFIG as KERNEL_CONFIG, rootCred, guestCred } from "../../deps/thistle/src/core/config.js";
-import type { SystemConfig } from "../../deps/thistle/src/core/config.js";
+import { DEFAULT_CONFIG as KERNEL_CONFIG, rootCred, guestCred } from "../../thistle/src/core/config.js";
+import type { SystemConfig } from "../../thistle/src/core/config.js";
 export { rootCred, guestCred };
-export type { SystemConfig, AccountConfig, LocalSessionConfig } from "../../deps/thistle/src/core/config.js";
+export type { SystemConfig, AccountConfig, LocalSessionConfig } from "../../thistle/src/core/config.js";
 
 export const DEFAULT_CONFIG: SystemConfig = {
   kernel: { ...KERNEL_CONFIG.kernel },

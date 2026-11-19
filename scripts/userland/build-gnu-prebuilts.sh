@@ -23,7 +23,7 @@ for tool in bun install cp; do
   command -v "$tool" >/dev/null || { printf 'Missing tool: %s\n' "$tool" >&2; exit 2; }
 done
 
-[[ -f "$PROJECT/src/tool/elf2thx.ts" && -f "$PROJECT/dist/teto/teto.wasm" ]] || {
+[[ -f "$PROJECT/src/tool/elf2thx.ts" && -f "$PROJECT/thistle/src/core/kernel.ts" ]] || {
   echo 'Build mikuOS before compiling the GNU userland' >&2; exit 2;
 }
 [[ -d "$ROOT" ]] || { printf 'Missing guest root: %s\n' "$ROOT" >&2; exit 2; }

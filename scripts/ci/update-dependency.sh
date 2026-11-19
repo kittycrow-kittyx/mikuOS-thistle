@@ -17,5 +17,7 @@ submodule = item["path"]
 subprocess.run(["git", "-C", submodule, "fetch", "origin", revision], check=True)
 subprocess.run(["git", "-C", submodule, "checkout", "--detach", revision], check=True)
 item["commit"] = subprocess.check_output(["git", "-C", submodule, "rev-parse", "HEAD"], text=True).strip()
+subprocess.run(["git", "-C", submodule, "submodule", "update", "--init", "--recursive"], check=True)
 path.write_text(json.dumps(data, indent=2) + "\n")
+subprocess.run(["git", "add", submodule, str(path)], check=True)
 PYUPDATE

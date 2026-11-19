@@ -1,10 +1,9 @@
-import { demoWasm } from "../wasm/demo.js";
 import { execFileSync } from "node:child_process";
 import { fsp } from "./host.js";
-import { Asm } from "../asm/asm.js";
-import { Link } from "../asm/link.js";
-import { codec, Exe } from "../asm/fmt.js";
-import { HELLO_TAS, libInc } from "../asm/lib.js";
+import { Asm } from "../../thistle/thistle-asm/asm.js";
+import { Link } from "../../thistle/thistle-asm/link.js";
+import { codec, Exe } from "../../thistle/thistle-asm/fmt.js";
+import { HELLO_TAS, libInc } from "../../thistle/thistle-asm/lib.js";
 import { build } from "esbuild";
 import { WebRootPackage } from "../main/webroot.js";
 import { ROOT_IMAGE_VERSION } from "../main/image.js";
@@ -21,40 +20,7 @@ const bundle = new URL("thistle.js", web);
 const cliRoot = new URL(".thistle.base/", root);
 const webRoot = new URL("root/", web);
 
-// Build the independent C boot programme before generating the main mikuOS
-// browser bundle. This WASM does not depend on Teto or the guest filesystem.
-const bootC = new URL("src/boot/boot.c", root);
-const bootWasm = new URL("boot.wasm", web);
-const logoDir = new URL("boot/", dst);
-const logoCompiler = new URL("compile-logo", logoDir);
-const logoHeader = new URL("generated-logo.h", logoDir);
 await fs.mkdir(web, { recursive: true });
-await fs.mkdir(logoDir, { recursive: true });
-
-// The original Unicode Art Studio <#RRGGBB> markup is compiled by the
-// canonical colour.h parser into ANSI/UTF-8 C constants. This runs only at
-// build time, before the freestanding and preloaded boot WASM is compiled.
-execFileSync("cc", [
-  "-std=c11", "-O2", "-D_XOPEN_SOURCE=700",
-  "-o", decodeURIComponent(logoCompiler.pathname),
-  decodeURIComponent(new URL("src/boot/compile-logo.c", root).pathname),
-], { stdio: "inherit" });
-execFileSync(decodeURIComponent(logoCompiler.pathname), [
-  decodeURIComponent(new URL("src/boot/logo.txt", root).pathname),
-  decodeURIComponent(logoHeader.pathname),
-], { stdio: "inherit" });
-
-try {
-  execFileSync("clang", [
-    "--target=wasm32", "-Oz", "-fno-builtin", "-nostdlib",
-    "-I", decodeURIComponent(logoDir.pathname),
-    "-Wl,--no-entry", "-Wl,--export-memory",
-    "-Wl,--initial-memory=131072", "-Wl,--strip-all",
-    "-o", decodeURIComponent(bootWasm.pathname), decodeURIComponent(bootC.pathname),
-  ], { stdio: "inherit" });
-} catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-  throw new Error("The independent mikuOS boot programme requires clang with wasm32 support", { cause: error });
-}
 await build({
   entryPoints: [decodeURIComponent(new URL("src/boot/loader.ts", root).pathname)],
   outfile: decodeURIComponent(new URL("bootloader.js", web).pathname),
@@ -74,13 +40,11 @@ await build({
   target: ["es2022"],
   legalComments: "none",
 });
-console.log("Early mikuOS boot programme compiled with the original Unicode colour.h logo");
 
 await fs.mkdir(assets, { recursive: true });
-await fs.writeFile(new URL("hello.wasm", assets), demoWasm());
 const hello = new Asm((name) => libInc(name), {"defs": {}, "arch": "thistle64",  debug: true }).run(HELLO_TAS, "hello.tas").obj;
 const helloThx = codec.pack(new Link().run([hello], {"entry": null, "base": null, "mem": null,  names: ["hello.to"] }).exe);
-const rvMessage = new TextEncoder().encode("hello from Teto RV64GC\n");
+const rvMessage = new TextEncoder().encode("hello from Thistle RV64GC\n");
 const rvWords = [
   (1 << 20 | 10 << 7 | 0x13) >>> 0,
   (0x20 << 12 | 11 << 7 | 0x37) >>> 0,
@@ -101,7 +65,7 @@ rvHello.sec.push(
   { name: ".text", flg: "rx", align: 4096, data: rvText, size: rvText.length, addr: 0x10000 },
   { name: ".rodata", flg: "r", align: 4096, data: rvMessage, size: rvMessage.length, addr: 0x20000 },
 );
-rvHello.ident.push("Generated RV64GC Teto execution fixture");
+rvHello.ident.push("Generated RV64GC Thistle execution fixture");
 const rvHelloThx = codec.pack(rvHello);
 await Promise.all([
   fs.writeFile(new URL("hello.txe", assets), helloThx),

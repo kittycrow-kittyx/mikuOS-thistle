@@ -10,7 +10,7 @@ accounts, shell, command set and THX executable support. Release 0.3 is styled
 
 `mikuOS-Thistle` pins [Thistle v2.2.1](https://github.com/kittycrow-kittyx/thistle/releases/tag/v2.2.1) at `76932c85c4db2eb481345aafe8611e6f53de9d85`.
 
-This branch uses the pinned Thistle native RV64GC instruction core for hosted execution. Teto binaries are not built or required by its default build. Hosted validation runs directly with Bun; compiled Teto checks are not applicable.
+This branch imports the canonical kernel from the root `thistle` pin. Bun runs the hosted validation suite directly.
 
 ## Build
 
@@ -28,7 +28,7 @@ The build verifies the pinned Thistle source and type-checks direct imports from
 bun mikuos.ts --kernel=thistle
 ```
 
-The CLI and browser default to Thistle. This checkout does not include a Teto binary.
+The CLI and browser use the pinned Thistle kernel.
 
 A host directory can be selected with `--root PATH`. `--bin PATH NAME`
 loads a supported guest executable into the running system.
@@ -65,4 +65,4 @@ The RV64GC execution adapter calls the pinned Thistle native instruction core di
 
 ## Canonical kernel
 
-The `mikuOS-Thistle` branch consumes `deps/thistle` directly. Kernel mechanisms live in that pinned repository; mikuOS supplies its distribution and custom `.thistle.base` userland. See [the integration and boot checks](docs/canonical-kernel.md).
+The `mikuOS-Thistle` branch consumes `thistle` directly. Kernel mechanisms live in that pinned repository; mikuOS supplies its distribution and custom `.thistle.base` userland. See [the integration and boot checks](docs/canonical-kernel.md).

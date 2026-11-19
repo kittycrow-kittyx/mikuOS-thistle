@@ -1,12 +1,12 @@
-import { ensure } from "../../deps/thistle/src/core/err.js";
-import { withValue } from "../../deps/thistle/src/core/err.js";
-import { requireValue } from "../../deps/thistle/src/core/err.js";
-import { App } from "../../deps/thistle/src/apps/base.js";
-import type { Sys } from "../../deps/thistle/src/core/sys.js";
-import { fmtMode, norm, Reg, Sym } from "../../deps/thistle/src/fs/vfs.js";
-import type { VNode } from "../../deps/thistle/src/fs/vfs.js";
+import { ensure } from "../../thistle/src/core/err.js";
+import { withValue } from "../../thistle/src/core/err.js";
+import { requireValue } from "../../thistle/src/core/err.js";
+import { App } from "../../thistle/src/apps/base.js";
+import type { Sys } from "../../thistle/src/core/sys.js";
+import { fmtMode, norm, Reg, Sym } from "../../thistle/src/fs/vfs.js";
+import type { VNode } from "../../thistle/src/fs/vfs.js";
 import { cols, globRx, size } from "./util.js";
-import { bad, KErr } from "../../deps/thistle/src/core/err.js";
+import { bad, KErr } from "../../thistle/src/core/err.js";
 
 const base = (p: string): string => norm(p).split("/").filter(Boolean).at(-1) ?? "/";
 const join = (a: string, b: string): string => a === "/" ? `/${b}` : `${a.replace(/\/$/, "")}/${b}`;
