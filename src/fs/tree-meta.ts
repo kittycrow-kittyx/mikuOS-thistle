@@ -3,7 +3,6 @@ import type { TreeEnt } from "../../deps/thistle/src/fs/tree.js";
 
 /** Serialised inode metadata, without host callbacks or resident file bytes. */
 // The shared shape is an inherited protocol; runtime identities and payload roles remain distinct.
-//@cg-expect-warning
 export type TreeMeta = Omit<TreeEnt, "data" | "source">;
 export interface TreeManifest { ver: number; image: number | null; ent: TreeMeta[]; }
 

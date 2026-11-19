@@ -14,7 +14,6 @@ const PF_R = 4;
 const MAX_MEM = 1024 * 1024 * 1024 * 1024;
 
 // The shared shape is an inherited protocol; runtime identities and payload roles remain distinct.
-//@cg-expect-warning
 export class ElfErr extends Error {
   constructor(message: string) { super(message); this.name = "ElfErr"; }
 }

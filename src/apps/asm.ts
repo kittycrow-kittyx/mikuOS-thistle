@@ -20,7 +20,6 @@ const dir = (p: string): string => p.includes("/") ? p.slice(0, p.lastIndexOf("/
 const put = (s: Sys, p: string, b: Uint8Array, mode: number): void => { s.writeb(p, b); s.chmod(p, mode); };
 
 // Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 abstract class ToolApp extends App {
   protected bin(s: Sys, p: string): Bin {
     try { return codec.unpack(s.readb(p)); }
@@ -33,7 +32,6 @@ abstract class ToolApp extends App {
 }
 
 // Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class AsApp extends ToolApp {
   constructor() { super("as", "Assemble Thistle64 or compatibility Thistle32 source.", "as [--64|--32] [-g] [-I dir] [-D name[=value]] [-o file] [--listing file] source"); }
   override async run(s: Sys, av: string[]): Promise<number> {
@@ -83,7 +81,6 @@ default: { i++; }
 }
 
 // Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class LdApp extends ToolApp {
   constructor() { super("ld", "Link Thistle objects into a native executable.", "ld [-e symbol] [-o file] [--Map file] [--image-base n] [--memory n] object ..."); }
   override async run(s: Sys, av: string[]): Promise<number> {
@@ -119,7 +116,6 @@ default: {  files.push(x); i++;  }
 }
 
 // Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Elf2ThxApp extends ToolApp {
   constructor() { super("elf2thx", "Import a static RV64 ELF executable into THX.", "elf2thx [-o file] input"); }
   override async run(s: Sys, av: string[]): Promise<number> {
@@ -199,7 +195,6 @@ export class NmApp extends ToolApp {
 }
 
 // Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class SizeApp extends ToolApp {
   constructor() { super("size", "Show section sizes in Thistle binaries.", "size file ..."); }
   override async run(s: Sys, a: string[]): Promise<number> {

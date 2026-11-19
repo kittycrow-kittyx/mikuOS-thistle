@@ -30,7 +30,6 @@ export interface HereDocRequest {
 }
 
 // The shared shape is an inherited protocol; runtime identities and payload roles remain distinct.
-//@cg-expect-warning
 export class ShExit extends Error {
   constructor(readonly code: number) { super(`shell exit ${code}`); }
 }
@@ -53,7 +52,6 @@ class FsOut extends Stream implements Out {
 }
 
 // The shared shape is an inherited protocol; runtime identities and payload roles remain distinct.
-//@cg-expect-warning
 class CaptureOut extends Stream implements Out {
 
 
