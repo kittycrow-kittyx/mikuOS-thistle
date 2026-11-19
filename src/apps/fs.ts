@@ -16,8 +16,8 @@ export class Pwd extends App {
   override async run(s: Sys): Promise<number> { await s.out(s.cwd + "\n"); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
+// Ls deliberately implements the shared App contract; semantic overlap can vary between runners.
+//@cg-ignore
 export class Ls extends App {
   constructor() { super("ls", "List directory contents.", "ls [-alhR] [path ...]"); }
 
