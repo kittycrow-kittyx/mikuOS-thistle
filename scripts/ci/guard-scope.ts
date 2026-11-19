@@ -3,12 +3,10 @@ import type { Project } from "@kitty-crow/code-guards/src/project.ts";
 
 function appBase(checker: ts.TypeChecker, type: ts.Type): ts.Type | null {
   const symbol = type.getSymbol() ?? null;
-  if (symbol !== null && symbol.getName() === "App") {
-    const declarations = symbol.declarations ?? [];
-    if (declarations.some(declaration =>
-      declaration.getSourceFile().fileName.replaceAll("\\", "/").endsWith("/thistle/src/apps/base.ts")
-    )) return type;
-  }
+  const declarations = symbol === null ? [] : symbol.declarations ?? [];
+  if (symbol !== null && symbol.getName() === "App" && declarations.some(declaration =>
+    declaration.getSourceFile().fileName.replaceAll("\\", "/").endsWith("/thistle/src/apps/base.ts")
+  )) return type;
   if (!type.isClassOrInterface()) return null;
   for (const base of checker.getBaseTypes(type)) {
     const app = appBase(checker, base);
