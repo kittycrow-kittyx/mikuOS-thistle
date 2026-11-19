@@ -17,3 +17,5 @@ Strict Code Guards and the staged-source comparison remain mandatory.
 tests requiring compiled Teto as not applicable. 
 
 Browser bundles still contain JavaScript because the browser executes it.
+
+The RV64GC execution adapter calls the pinned Thistle native instruction core directly. The old locally implemented instruction decoder is removed; the host cannot select a second RV64GC engine. Host process, filesystem and syscall compatibility services still need migration to the upstream kernel boundary. This is an intermediate integration step, not complete kernel separation.

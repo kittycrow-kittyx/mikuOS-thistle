@@ -10,7 +10,7 @@ accounts, shell, command set and THX executable support. Release 0.3 is styled
 
 `mikuOS-Thistle` pins [Thistle v2.2.1](https://github.com/kittycrow-kittyx/thistle/releases/tag/v2.2.1) at `76932c85c4db2eb481345aafe8611e6f53de9d85`.
 
-This branch uses direct Thistle source for the hosted TypeScript runtime. Teto binaries are not built or required by its default build. Hosted validation runs directly with Bun; compiled Teto checks are not applicable.
+This branch uses the pinned Thistle native RV64GC instruction core for hosted execution. Teto binaries are not built or required by its default build. Hosted validation runs directly with Bun; compiled Teto checks are not applicable.
 
 ## Build
 
@@ -60,3 +60,5 @@ alternative. See [root image and userland](docs/userland.md).
 
 [MIT](LICENSE) for original code. Bundled software retains its upstream
 licences; see [third-party software](THIRD_PARTY.md).
+
+The RV64GC execution adapter calls the pinned Thistle native instruction core directly. The old locally implemented instruction decoder is removed; the host cannot select a second RV64GC engine. Host process, filesystem and syscall compatibility services still need migration to the upstream kernel boundary. This is an intermediate integration step, not complete kernel separation.

@@ -16,7 +16,6 @@ import type { Tree } from "../fs/tree.js";
 import { DEFAULT_CONFIG } from "../core/config.js";
 import type { AccountConfig, SystemConfig } from "../core/config.js";
 import type { TetoImageProvider } from "../teto/loader.js";
-import { validateTetoProvider } from "../teto/provider.js";
 import type { KernelMode } from "../teto/provider.js";
 
 export type Ch = "out" | "err" | "sys" | "in";
@@ -168,44 +167,14 @@ export class Os {
   private async configureKernelMode(): Promise<void> {
     withValue(this.host.onBootProgress ?? null, callable => callable.call(this.host, 5));
     const requested = this.host.kernelMode ?? "thistle";
-    if (requested === "thistle") {
-      this.activeKernelMode = "thistle";
-      this.k.name = "Thistle";
-      this.p.env.set("MIKUOS_KERNEL_MODE", "thistle");
-      this.p.env.delete("THISTLE_RV_CORE");
-      this.p.env.delete("THISTLE_PORTABLE_PROBE");
-      this.p.env.delete("THISTLE_TETO_STRICT");
-      this.k.executionCore = "Thistle TypeScript";
-      return;
-    }
-    if (!this.host.teto) {
-      ensure(!(requested === "teto"), () => { throw new Error("Teto was requested but this host did not provide teto.wasm"); });
-      this.k.log("teto: unavailable; auto mode retained direct Thistle execution");
-      this.activeKernelMode = "thistle";
-      this.k.name = "Thistle";
-      this.p.env.set("MIKUOS_KERNEL_MODE", "thistle");
-      return;
-    }
-    try {
-      await validateTetoProvider(this.host.teto);
-      this.activeKernelMode = "teto";
-      this.k.name = "Teto";
-      this.p.env.set("MIKUOS_KERNEL_MODE", "teto");
-      this.p.env.set("THISTLE_RV_CORE", "teto-wasm-core");
-      // Strict execution: an unsupported Teto syscall is a visible failure,
-      // never a silent return to the independently executed Thistle VM.
-      this.p.env.set("THISTLE_TETO_STRICT", "1");
-      this.k.executionCore = "Teto WebAssembly";
-      this.k.log("teto: generated WebAssembly RV64 execution core validated and selected");
-    } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      if (requested === "teto") throw error;
-      this.activeKernelMode = "thistle";
-      this.p.env.set("MIKUOS_KERNEL_MODE", "thistle");
-      this.p.env.delete("THISTLE_RV_CORE");
-      this.p.env.delete("THISTLE_TETO_STRICT");
-      this.k.executionCore = "Thistle TypeScript";
-      this.k.log(`teto: startup validation failed; auto mode fell back to Thistle: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    ensure(requested !== "teto", () => { throw new Error("This branch uses the pinned Thistle kernel; Teto is not available"); });
+    this.activeKernelMode = "thistle";
+    this.k.name = "Thistle";
+    this.p.env.set("MIKUOS_KERNEL_MODE", "thistle");
+    this.p.env.delete("THISTLE_RV_CORE");
+    this.p.env.delete("THISTLE_PORTABLE_PROBE");
+    this.p.env.delete("THISTLE_TETO_STRICT");
+    this.k.executionCore = "Thistle TypeScript";
   }
 
   private async init(): Promise<void> {

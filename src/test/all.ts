@@ -206,12 +206,13 @@ const tests: Array<[string, () => void | Promise<void>]> = [];
 const test = (name: string, fn: () => void | Promise<void>): void => { tests.push([name, fn]); };
 const show = <T>(value: T): string => JSON.stringify(value, <V>(_key: string, item: V) => typeof item === "bigint" ? `${item}n` : item) ?? String(value);
 
-test("Thistle preserves its working interpreter without substituting Teto source", async () => {
+test("Thistle boots without a second RV64 interpreter", async () => {
   const original = boot({"halt": null, "tree": null, "requireTree": null, "pkg": null, "config": null, "account": null, "setId": null, "teto": null, "onBootProgress": null, put: () => {}, kernelMode: "thistle" }, null);
   await original.ready;
   assert.equal(original.p.env.has("THISTLE_RV_CORE"), false);
   assert.equal(original.p.env.has("THISTLE_PORTABLE_PROBE"), false);
   assert.equal(original.k.executionCore, "Thistle TypeScript");
+  assert.equal("step" in Rv64.prototype, false, "A separate RV64 instruction decoder must not exist");
 });
 
 test("canonical RV64 FCLASS distinguishes every IEEE-754 category", () => {
@@ -1750,7 +1751,7 @@ test("Teto credential syscalls preserve source and WebAssembly transaction parit
   assert.equal(generatedResult, sourceResult);
 });
 
-test("byte-identical RV64GC THX and .39 execute through direct and source cores", async () => {
+test("byte-identical RV64GC THX and .39 execute through the canonical Thistle core", async () => {
   interface HFs { readFile(path: URL): Promise<Uint8Array>; }
 
   const fs = await hostModule("node:fs/promises") as HFs;
@@ -1766,8 +1767,7 @@ test("byte-identical RV64GC THX and .39 execute through direct and source cores"
   assert.equal(`${expected.code}:${expected.out}:${expected.err}`, "0:hello from Teto RV64GC\n:");
 
   const source = new Rig();
-  source.os.s.setenv("THISTLE_RV_CORE", "teto-source");
-  source.os.s.setenv("THISTLE_TETO_STRICT", "1");
+  source.os.s.setenv("THISTLE_RV_CORE", "teto-wasm-core"); // Legacy selectors must not substitute another kernel.
   const sourceThx = source.os.load("hello-rv64.thx", thxBytes);
   const sourceAlias = source.os.load("hello-rv64.39", aliasBytes);
   const thx = await source.run(sourceThx);
