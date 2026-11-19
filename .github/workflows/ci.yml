@@ -1,4 +1,4 @@
-name: CI
+name: Operating system validation
 
 on:
   push:
@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Validate hosted tooling
+  validate:
+    name: Validate operating system
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -24,13 +24,13 @@ jobs:
           bun-version: 1.4.5
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
-      - name: Build
+      - name: Build and validate operating system
         run: bun run build
-      - name: Verify pinned source
+      - name: Verify pinned kernel
         run: bash scripts/ci/verify-thistle-pin.sh
-      - name: Test hosted userspace
+      - name: Test hosted userland
         run: bun src/test/all.ts
-      - name: Boot canonical kernel with custom userland
+      - name: Test canonical kernel boot
         run: bun run test:boot
       - name: Upload Code Guards report
         if: always()
@@ -39,8 +39,8 @@ jobs:
           name: mikuos-code-guards
           path: logs/code-guards.json
           if-no-files-found: ignore
-  fresh-tmp-checkout:
-    name: Clean checkout
+  clean-checkout:
+    name: Validate clean checkout
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -58,7 +58,7 @@ jobs:
           git -C "$work/mikuOS" checkout --detach "$TEST_REV"
           git -C "$work/mikuOS" submodule update --init --recursive
           echo "MIKUOS_TMP=$work/mikuOS" >> "$GITHUB_ENV"
-      - name: Build from clean source
+      - name: Build from clean checkout
         run: |
           set -Eeuo pipefail
           cd "$MIKUOS_TMP"

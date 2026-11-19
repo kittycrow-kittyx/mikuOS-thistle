@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   compatibility:
+    name: Validate dependency compatibility
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -39,9 +40,9 @@ jobs:
           DEPENDENCY: ${{ github.event.client_payload.dependency || inputs.dependency }}
           REVISION: ${{ github.event.client_payload.new_commit || inputs.revision }}
         run: scripts/ci/update-dependency.sh "$DEPENDENCY" "$REVISION"
-      - name: Install
+      - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
-      - name: Compatibility suite
+      - name: Test dependency compatibility
         run: bun run test && bun run test:boot
       - name: Open or update approval-only pull request
         env:
