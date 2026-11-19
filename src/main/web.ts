@@ -155,7 +155,7 @@ export const launchThistle = async (options: LaunchOptions = {"terminal": null, 
   withValue(bootScreen ?? null, value => value.report(1, null, null));
   const config = options.config ?? await staticBrowserConfig(null);
   const query = typeof location === "undefined" ? null : new URL(location.href).searchParams.get("kernel");
-  const requestedKernel = options.kernel ?? kernelMode(query, "teto");
+  const requestedKernel = options.kernel ?? kernelMode(query, "thistle");
   const teto = requestedKernel === "thistle"
     ? null
     : fetchTetoProvider(options.tetoBase ?? new URL("./teto/", document.baseURI));

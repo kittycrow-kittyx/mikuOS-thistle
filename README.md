@@ -6,6 +6,12 @@ mikuOS (初音ミクOS) provides a Unix-like userspace with a common root image,
 accounts, shell, command set and THX executable support. Release 0.3 is styled
 **v｡三**.
 
+## Kernel branch
+
+`mikuOS-Thistle` pins [Thistle v2.2.1](https://github.com/kittycrow-kittyx/thistle/releases/tag/v2.2.1) at `76932c85c4db2eb481345aafe8611e6f53de9d85`.
+
+This branch uses direct Thistle source for the hosted TypeScript runtime. Teto binaries are not built or required by its default build. The branch-specific validation suite still needs to be adapted.
+
 ## Build
 
 ```sh
@@ -14,20 +20,15 @@ npm install
 npm run build
 ```
 
-The build compiles the hosted runtime, assembles the pinned Teto WAT
-modules and prepares the static browser files. See [build and generated files](docs/build.md).
+The build compiles the hosted runtime from the pinned Thistle source and prepares the static browser files. See [build and generated files](docs/build.md).
 
 ## Run
 
 ```sh
-bun mikuos.ts --kernel=teto
 bun mikuos.ts --kernel=thistle
-bun mikuos.ts --kernel=auto
 ```
 
-The CLI and browser default to Teto. `auto` permits fallback to the hosted
-Thistle implementation if Teto cannot be loaded. The kernel choices above
-are the modes exposed by this branch's host.
+The CLI and browser default to Thistle. This checkout does not include a Teto binary.
 
 A host directory can be selected with `--root PATH`. `--bin PATH NAME`
 loads a supported guest executable into the running system.

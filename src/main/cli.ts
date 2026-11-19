@@ -39,7 +39,7 @@ const config = await hostConfig(null);
 const session = localSessionPlan(config);
 const kernelArg = (withValue((hp.argv.find(value => value.startsWith("--kernel=")) ?? null) ?? null, value => value.slice("--kernel=".length)) ?? null);
 const kernelIndex = hp.argv.indexOf("--kernel");
-const requestedKernel = kernelMode(kernelArg ?? (kernelIndex >= 0 ? (hp.argv[kernelIndex + 1] ?? null) : (withValue(hp.env ?? null, value => (value.MIKUOS_KERNEL ?? null)) ?? null)), "teto");
+const requestedKernel = kernelMode(kernelArg ?? (kernelIndex >= 0 ? (hp.argv[kernelIndex + 1] ?? null) : (withValue(hp.env ?? null, value => (value.MIKUOS_KERNEL ?? null)) ?? null)), "thistle");
 if (kernelIndex >= 0 && !(hp.argv[kernelIndex + 1] ?? null)) throw new Error("--kernel needs thistle, teto or auto");
 const tetoRoot = new URL("../../dist/teto/", import.meta.url);
 const rawTetoProvider: TetoImageProvider = {

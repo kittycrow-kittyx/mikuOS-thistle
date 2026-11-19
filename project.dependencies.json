@@ -20,10 +20,10 @@
       "updatePolicy": "pull-request"
     },
     {
-      "name": "Teto",
-      "repository": "kittycrow-kittyx/teto",
-      "path": "deps/teto",
-      "commit": "ac0a32062e71a42eea06657565b8e6b736240814",
+      "name": "Thistle",
+      "repository": "kittycrow-kittyx/thistle",
+      "path": "deps/thistle",
+      "commit": "76932c85c4db2eb481345aafe8611e6f53de9d85",
       "relationship": "native-kernel",
       "direct": true,
       "updatePolicy": "pull-request"

@@ -1,9 +1,7 @@
 import { fsp } from "../../src/tool/host.js";
 import { ensure } from "../../src/core/err.js";
-import { parseJson } from "../../src/core/json.js";
 /**
- * Stage direct TypeScript imports from the exact Thistle gitlink and source
- * provenance recorded by Teto. No native kernel file is
+ * Stage direct TypeScript imports from the exact canonical Thistle gitlink. No native kernel file is
  * maintained in mikuOS. --check verifies byte-for-byte equivalence.
  */
 import { spawnSync } from "node:child_process";
@@ -12,20 +10,11 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const teto = resolve(root, "deps/teto");
-const upstream = resolve(teto, "thistle");
-const manifest = parseJson(await readFile(resolve(teto, "teto.manifest.json"), "utf8"));
-if (typeof manifest !== "object" || manifest === null || !("canonicalRevision" in manifest) ||
-    typeof manifest.canonicalRevision !== "string" || !("canonicalSource" in manifest) ||
-    !("toolchain" in manifest) || typeof manifest.toolchain !== "object" ||
-    manifest.toolchain === null || !("Thistle" in manifest.toolchain)) {
-  throw new Error("Invalid Teto provenance manifest");
-}
-const recorded = manifest.canonicalRevision;
-const pin = spawnSync("git", ["-C", teto, "ls-tree", "HEAD", "thistle"], { encoding: "utf8" });
-if (manifest.canonicalSource !== "Thistle" || manifest.toolchain.Thistle !== recorded ||
-    pin.status !== 0 || !pin.stdout.startsWith(`160000 commit ${recorded}\tthistle`)) {
-  throw new Error("Teto manifest and canonical Thistle gitlink disagree");
+const upstream = resolve(root, "deps/thistle");
+const pin = spawnSync("git", ["-C", root, "ls-tree", "HEAD", "deps/thistle"], { encoding: "utf8" });
+const recorded = (pin.stdout.split(/\s+/)[2] ?? null);
+if (pin.status !== 0 || recorded === null || !/^[0-9a-f]{40}$/.test(recorded) || !pin.stdout.startsWith(`160000 commit ${recorded}\tdeps/thistle`)) {
+  throw new Error("Invalid canonical Thistle gitlink");
 }
 const checkedRoot = spawnSync("git", ["-C", upstream, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
 if (checkedRoot.status !== 0 || checkedRoot.stdout.trim() !== upstream) {
@@ -129,4 +118,4 @@ for (const [from, to] of files) {
     await copyFile(resolve(upstream, from), destination);
   }
 }
-console.log(`${verifyOnly ? "Verified" : "Staged"} ${files.length} native source files from Thistle ${recorded}; no independent Teto kernel source`);
+console.log(`${verifyOnly ? "Verified" : "Staged"} ${files.length} native source files from Thistle ${recorded}; no independent kernel source`);
