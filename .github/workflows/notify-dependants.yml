@@ -12,7 +12,7 @@ jobs:
   notify:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'mikuOS-Thistle'
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     env:
       KITTYX_AUTOMATION_APP_ID: ${{ vars.KITTYX_AUTOMATION_APP_ID }}

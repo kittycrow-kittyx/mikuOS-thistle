@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [mikuOS-Thistle]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -54,7 +54,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           work="$(mktemp -d /tmp/mikuos-hosted.XXXXXXXX)"
-          git clone --no-checkout https://github.com/kittycrow-kittyx/mikuOS.git "$work/mikuOS"
+          git clone --no-checkout https://github.com/kittycrow-kittyx/mikuOS-thistle.git "$work/mikuOS"
           git -C "$work/mikuOS" checkout --detach "$TEST_REV"
           git -C "$work/mikuOS" submodule update --init --recursive
           echo "MIKUOS_TMP=$work/mikuOS" >> "$GITHUB_ENV"

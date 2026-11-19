@@ -27,7 +27,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
         with:
-          ref: mikuOS-Thistle
+          ref: main
           submodules: recursive
           fetch-depth: 0
       - name: Set up Bun

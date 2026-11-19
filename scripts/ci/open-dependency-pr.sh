@@ -16,5 +16,5 @@ number="$(gh pr list --head "$branch" --json number --jq '.[0].number // empty')
 if [[ -n "$number" ]]; then
   gh pr edit "$number" --title "$title" --body "$body"
 else
-  gh pr create --draft --head "$branch" --base mikuOS-Thistle --title "$title" --body "$body"
+  gh pr create --draft --head "$branch" --base main --title "$title" --body "$body"
 fi
