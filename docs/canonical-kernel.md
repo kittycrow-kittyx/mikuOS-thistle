@@ -1,6 +1,6 @@
 # Canonical Thistle integration
 
-Only `mikuOS-Thistle` is changed by this integration. `deps/thistle` is the kernel source of truth, recorded as an exact gitlink and in `project.dependencies.json`. mikuOS has no kernel class, scheduler, process model, VFS, RV64 interpreter or WASI implementation of its own. It imports canonical types and operations directly.
+The `deps/thistle` gitlink records the kernel revision. `project.dependencies.json` records the same commit. mikuOS imports the kernel classes and operations from that checkout.
 
 `Os` composes the pinned `Kern` with distribution configuration, installed userland applications, terminal endpoints and persistence. Its root is the custom `.thistle.base` plus a separate writable overlay. The immutable base is never used as the writable root.
 
