@@ -10,7 +10,7 @@ import {
   THISTLE_VFS_KIND_DIRECTORY as TETO_VFS_KIND_DIRECTORY,
   THISTLE_VFS_KIND_FILE as TETO_VFS_KIND_FILE,
   THISTLE_VFS_KIND_LINK as TETO_VFS_KIND_LINK,
-} from "./abi.js";
+} from "../../deps/thistle/src/native/abi.js";
 
 const HEADER_SIZE = 32;
 const INODE_RECORD_SIZE = 56;

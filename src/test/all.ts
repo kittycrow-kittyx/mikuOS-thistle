@@ -30,11 +30,11 @@ import { IDENTITY } from "../core/identity.js";
 import { LineEditor } from "../sh/editor.js";
 import { hostConfig, mergeConfig } from "../main/config.js";
 import { sourceReleaseName } from "../core/release.js";
-import { rv64Branch } from "../core/rv64-branch.js";
-import { rv64RegisterWordValid, rv64RegisterWordValue, rv64ImmediateWordValid, rv64ImmediateWordValue } from "../core/rv64-word.js";
-import { rv64ImmediateOpValid, rv64ImmediateOpValue } from "../core/rv64-immediate-op.js";
-import { rv64RegisterValid, rv64RegisterValue } from "../core/rv64-register.js";
-import { rv64FloatClass } from "../core/rv64-fclass.js";
+import { rv64Branch } from "../../deps/thistle/src/core/rv64-branch.js";
+import { rv64RegisterWordValid, rv64RegisterWordValue, rv64ImmediateWordValid, rv64ImmediateWordValue } from "../../deps/thistle/src/core/rv64-word.js";
+import { rv64ImmediateOpValid, rv64ImmediateOpValue } from "../../deps/thistle/src/core/rv64-immediate-op.js";
+import { rv64RegisterValid, rv64RegisterValue } from "../../deps/thistle/src/core/rv64-register.js";
+import { rv64FloatClass } from "../../deps/thistle/src/core/rv64-fclass.js";
 import {
   rv64DivideSigned,
   rv64DivideUnsigned,
@@ -43,7 +43,7 @@ import {
   rv64MulHighUnsigned,
   rv64RemainderSigned,
   rv64RemainderUnsigned,
-} from "../core/rv64-arithmetic.js";
+} from "../../deps/thistle/src/core/rv64-arithmetic.js";
 import {
   rv64CompressedJump,
   rv64ImmediateB,
@@ -51,11 +51,11 @@ import {
   rv64ImmediateJ,
   rv64ImmediateS,
   rv64ImmediateU,
-} from "../vm/rv64-immediate.js";
+} from "../../deps/thistle/src/vm/rv64-immediate.js";
 import { localSessionPlan, superviseLocalLogin } from "../main/session.js";
 import { WebSession } from "../main/websession.js";
 import { WebTree } from "../main/webtree.js";
-import { directMemory } from "../teto/memory.js";
+import { directMemory } from "../../deps/thistle/src/native/memory.js";
 import {
   thistleHartGetX as tetoHartGetX,
   thistleHartGetF as tetoHartGetF,
@@ -92,9 +92,9 @@ import {
   thistleDescriptorInode as tetoDescriptorInode,
   thistleDescriptorOffset as tetoDescriptorOffset,
   thistleRunRv64Batch as tetoRunRv64Batch,
-} from "../teto/kernel.js";
-import { thistleLoadThx as tetoLoadThx } from "../teto/thx.js";
-import { thistleBuildInitialStack as tetoBuildInitialStack } from "../teto/start.js";
+} from "../../deps/thistle/src/native/kernel.js";
+import { thistleLoadThx as tetoLoadThx } from "../../deps/thistle/src/native/thx.js";
+import { thistleBuildInitialStack as tetoBuildInitialStack } from "../../deps/thistle/src/native/start.js";
 import { serializeTetoVfs } from "../teto/vfs-host.js";
 import {
   thistleLoadVfs as tetoLoadVfs,
@@ -110,7 +110,7 @@ import {
   thistleVfsReadData as tetoVfsReadData,
   thistleVfsRoot as tetoVfsRoot,
   thistleVfsUid as tetoVfsUid,
-} from "../teto/vfs.js";
+} from "../../deps/thistle/src/native/vfs.js";
 import {
   C_ACTIVE_WORKERS,
   H_FAULT,
@@ -149,7 +149,7 @@ import {
   THISTLE_SEGMENT_WRITE as TETO_SEGMENT_WRITE,
   W_BATCHES,
   W_INSTRUCTIONS,
-} from "../teto/abi.js";
+} from "../../deps/thistle/src/native/abi.js";
 import { loadTeto } from "../teto/loader.js";
 import type { TetoImageProvider } from "../teto/loader.js";
 import type { TetoExports } from "../teto/loader.js";
@@ -434,7 +434,7 @@ test("RV64 shared mappings flush on msync, munmap and exit", async () => {
   const r = new Rig(), bin = new Uint8Array(await fs.readFile(new URL("../../assets/mmap-shared.thx", import.meta.url)));
   r.os.load("mmap-shared.thx", bin);
   const x = await r.run("/tmp/mmap-shared.thx");
-  assert.equal(x.code, 0); assert.equal(x.err, "");
+  assert.equal(x.code, 0, x.err); assert.equal(x.err, "");
   const b = r.os.s.readb("/tmp/mmap-shared.out"), at = (n: number, s: string): void => assert.equal(dec(b.slice(n, n + s.length)), s);
   at(0, "flushed-at-exit"); at(4096, "flushed-by-msync"); at(8192, "flushed-by-munmap");
 });

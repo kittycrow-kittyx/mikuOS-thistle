@@ -20,7 +20,7 @@ bun install --frozen-lockfile --ignore-scripts
 bun run build
 ```
 
-The build compiles the hosted runtime from the pinned Thistle source and prepares the static browser files. See [build and generated files](docs/build.md).
+The build verifies the pinned Thistle source and type-checks direct imports from it and prepares the static browser files. See [build and generated files](docs/build.md).
 
 ## Run
 

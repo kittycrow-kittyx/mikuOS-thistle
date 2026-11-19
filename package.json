@@ -6,9 +6,9 @@
   "description": "mikuOS 0.3, a Unix-like system built on the Thistle kernel.",
   "scripts": {
     "build": "bun run build:thistle",
-    "build:thistle": "bun run stage:thistle && bun run build:thistle:staged",
+    "build:thistle": "bun run prepare:thistle && bun run build:thistle:verified",
     "clean": "rm -rf build dist thistle.js vendor",
-    "test": "bun run build && bun scripts/ci/stage-thistle-native.mts --check && bun src/test/all.ts --hosted-only",
+    "test": "bun run build && bash scripts/ci/verify-thistle-pin.sh && bun src/test/all.ts --hosted-only",
     "test:toolchain": "bun run thistlecc/test/test.ts",
     "test:guest-toolchain": "bun run build && THISTLE_FUEL=0 bun src/test/toolchain.ts",
     "test:bun": "bun run build && bun src/test/bun.ts",
@@ -24,11 +24,11 @@
     "audit:base": "python3 scripts/release/sync-thistle-base.py --check",
     "git:upload": "bash scripts/release/git-upload.sh",
     "test:node39": "bash scripts/ci/test-node39-parity.sh",
-    "stage:thistle": "git submodule update --init --recursive deps/thistle && bun scripts/ci/stage-thistle-native.mts",
-    "build:thistle:staged": "bun run clean && bun run guards:staged && bun run check:scripts && bun --bun tsc --noEmit -p tsconfig.json && bun src/tool/post.ts",
     "check:scripts": "bun --bun tsc --noEmit -p tsconfig.tools.json",
-    "guards": "bun run stage:thistle && bun run guards:staged",
-    "guards:staged": "bash scripts/ci/guards.sh"
+    "guards": "bun run prepare:thistle && bun run guards:verified",
+    "prepare:thistle": "git submodule update --init --recursive deps/thistle && bash scripts/ci/verify-thistle-pin.sh",
+    "build:thistle:verified": "bun run clean && bun run guards:verified && bun run check:scripts && bun --bun tsc --noEmit -p tsconfig.json && bun src/tool/post.ts",
+    "guards:verified": "bash scripts/ci/guards.sh"
   },
   "mikuos": {
     "version": "0.3"

@@ -133,7 +133,7 @@ Thumbs.db
 !/.thistle.base/
 !/.thistle.base/**
 
-# Canonical Thistle native files are materialised by stage:thistle; never commit copies.
+# Ignore obsolete outputs from earlier staging builds; never compile or commit them.
 /src/teto/image-range.ts
 /src/core/rv64-decode.ts
 /src/teto/abi.ts

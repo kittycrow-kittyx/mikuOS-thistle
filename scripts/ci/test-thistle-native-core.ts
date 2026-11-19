@@ -1,11 +1,11 @@
 import { requireValue } from "../../src/core/err.js";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { rv64Branch } from "../../src/core/rv64-branch.ts";
-import { rv64RegisterWordValid, rv64RegisterWordValue, rv64ImmediateWordValid, rv64ImmediateWordValue } from "../../src/core/rv64-word.ts";
-import { rv64ImmediateOpValid, rv64ImmediateOpValue } from "../../src/core/rv64-immediate-op.ts";
-import { rv64RegisterValid, rv64RegisterValue } from "../../src/core/rv64-register.ts";
-import { rv64FloatClass } from "../../src/core/rv64-fclass.ts";
+import { rv64Branch } from "../../deps/thistle/src/core/rv64-branch.ts";
+import { rv64RegisterWordValid, rv64RegisterWordValue, rv64ImmediateWordValid, rv64ImmediateWordValue } from "../../deps/thistle/src/core/rv64-word.ts";
+import { rv64ImmediateOpValid, rv64ImmediateOpValue } from "../../deps/thistle/src/core/rv64-immediate-op.ts";
+import { rv64RegisterValid, rv64RegisterValue } from "../../deps/thistle/src/core/rv64-register.ts";
+import { rv64FloatClass } from "../../deps/thistle/src/core/rv64-fclass.ts";
 import {
   rv64DivideSigned,
   rv64DivideUnsigned,
@@ -14,7 +14,7 @@ import {
   rv64MulHighUnsigned,
   rv64RemainderSigned,
   rv64RemainderUnsigned,
-} from "../../src/core/rv64-arithmetic.ts";
+} from "../../deps/thistle/src/core/rv64-arithmetic.ts";
 import {
   rv64CompressedJump,
   rv64ImmediateB,
@@ -22,7 +22,7 @@ import {
   rv64ImmediateJ,
   rv64ImmediateS,
   rv64ImmediateU,
-} from "../../src/vm/rv64-immediate.ts";
+} from "../../deps/thistle/src/vm/rv64-immediate.ts";
 
 interface NativeCore extends WebAssembly.Exports {
   rv64Branch(funct3: number, left: bigint, right: bigint): number;

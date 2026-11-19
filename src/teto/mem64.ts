@@ -1,10 +1,10 @@
 import { requireValue } from "../core/err.js";
 import { bad } from "../core/err.js";
 import type { RvMemory } from "../vm/mem64.js";
-import { H_PAGE_COUNT, THISTLE_GUEST_PAGE_SIZE as TETO_GUEST_PAGE_SIZE, THISTLE_HART_BASE as TETO_HART_BASE, THISTLE_HART_STRIDE as TETO_HART_STRIDE } from "./abi.js";
-import { thistleGuestPage as tetoGuestPage } from "./kernel.js";
-import { loadU32 } from "./memory.js";
-import type { ThistleMemory as TetoMemory } from "./memory.js";
+import { H_PAGE_COUNT, THISTLE_GUEST_PAGE_SIZE as TETO_GUEST_PAGE_SIZE, THISTLE_HART_BASE as TETO_HART_BASE, THISTLE_HART_STRIDE as TETO_HART_STRIDE } from "../../deps/thistle/src/native/abi.js";
+import { thistleGuestPage as tetoGuestPage } from "../../deps/thistle/src/native/kernel.js";
+import { loadU32 } from "../../deps/thistle/src/native/memory.js";
+import type { ThistleMemory as TetoMemory } from "../../deps/thistle/src/native/memory.js";
 
 const INVALID = 0xffffffff;
 const UNMAPPED = 0xfffffffe;

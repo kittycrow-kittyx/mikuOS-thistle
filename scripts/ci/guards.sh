@@ -23,15 +23,6 @@ while IFS= read -r -d '' file; do
     fi
 done < "$scope/.guard-files"
 
-# Canonical Thistle sources are staged into mikuOS under ignored paths.
-# They remain type-checkable but are not in the owned-file set.
-while IFS= read -r file; do
-    file="${file#/}"
-    [[ -f "$file" ]] || { echo "Missing staged Thistle source: $file" >&2; exit 1; }
-    mkdir -p "$scope/$(dirname "$file")"
-    cp -a -- "$file" "$scope/$file"
-done < <(sed -n '/^# Canonical Thistle native files/,$ { /^\/src\/.*\.ts$/p; }' .gitignore)
-
 ln -s "$root/node_modules" "$scope/node_modules"
 mkdir -p logs
 # Set the native runtime opt-out before Bun loads ONNX Runtime.

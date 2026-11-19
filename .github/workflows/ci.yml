@@ -27,7 +27,7 @@ jobs:
       - name: Build
         run: bun run build
       - name: Verify pinned source
-        run: bun scripts/ci/stage-thistle-native.mts --check
+        run: bash scripts/ci/verify-thistle-pin.sh
       - name: Test hosted userspace
         run: bun src/test/all.ts --hosted-only
       - name: Upload Code Guards report

@@ -10,9 +10,9 @@ Bun 1.4.5 or later runs the host TypeScript directly. Type-checking uses
 `bun --bun tsc --noEmit`. Build assets and browser bundles are generated
 under `build/` and `dist/web/`; no host JavaScript is emitted.
 
-The build stages the exact canonical Thistle compatibility source from the direct Thistle pin.
+The build verifies the exact direct Thistle pin. Its native modules and shared helpers are imported directly from `deps/thistle/`; no kernel files are staged into mikuOS.
 
-Strict Code Guards and the staged-source comparison remain mandatory.
+Strict Code Guards and the exact pin verification remain mandatory.
 `bun run test` runs the hosted integration suite and explicitly reports
 tests requiring compiled Teto as not applicable. 
 
