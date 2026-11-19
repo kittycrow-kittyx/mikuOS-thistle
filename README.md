@@ -10,14 +10,14 @@ accounts, shell, command set and THX executable support. Release 0.3 is styled
 
 `mikuOS-Thistle` pins [Thistle v2.2.1](https://github.com/kittycrow-kittyx/thistle/releases/tag/v2.2.1) at `76932c85c4db2eb481345aafe8611e6f53de9d85`.
 
-This branch uses direct Thistle source for the hosted TypeScript runtime. Teto binaries are not built or required by its default build. The branch-specific validation suite still needs to be adapted.
+This branch uses direct Thistle source for the hosted TypeScript runtime. Teto binaries are not built or required by its default build. Hosted validation runs directly with Bun; compiled Teto checks are not applicable.
 
 ## Build
 
 ```sh
 git submodule update --init --recursive
-npm install
-npm run build
+bun install --frozen-lockfile --ignore-scripts
+bun run build
 ```
 
 The build compiles the hosted runtime from the pinned Thistle source and prepares the static browser files. See [build and generated files](docs/build.md).
@@ -36,8 +36,8 @@ loads a supported guest executable into the running system.
 Build and preview the static site:
 
 ```sh
-npm run web
-npm run serve:web
+bun run web
+bun run serve:web
 ```
 
 Static files are written to `dist/web/`.

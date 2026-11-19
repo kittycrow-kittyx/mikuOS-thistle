@@ -2,133 +2,66 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [mikuOS-Thistle]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   test:
+    name: Validate hosted tooling
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@v4
         with:
-          submodules: false
-
-      - name: Initialise recursive submodules
-        shell: bash
-        run: |
-          set -o pipefail
-          git submodule sync --recursive
-          git submodule update --init --recursive 2>&1 | tee /tmp/mikuos-submodules.log
-
-      - name: Upload failed submodule log
-        if: failure()
-        uses: actions/upload-artifact@v4
+          submodules: recursive
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          name: mikuos-submodule-log
-          path: /tmp/mikuos-submodules.log
-          if-no-files-found: ignore
-
-      - uses: oven-sh/setup-bun@v2
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
-
+          bun-version: 1.4.5
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
       - name: Build
-        shell: bash
-        run: |
-          set -o pipefail
-          npm run build 2>&1 | tee /tmp/mikuos-build.log
-
-      - name: Upload failed build log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mikuos-build-log
-          path: |
-            /tmp/mikuos-build.log
-            logs/code-guards.json
-          if-no-files-found: ignore
-
-      - name: Validate Node.js parity acceptance script
-        run: bash -n scripts/ci/test-node39-parity.sh
-
-      - name: Cross-check compiled Teto against canonical instruction helpers
-        shell: bash
-        run: |
-          bun scripts/ci/test-thistle-native-core.ts
-
-      - name: Validate pinned Thistle source and compiled Teto
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          bun scripts/ci/stage-thistle-native.mts --check
-          (cd deps/teto && sha256sum -c SHA256SUMS)
-          cmp deps/teto/dist/teto/teto.wasm dist/teto/teto.wasm
-          cmp deps/teto/dist/teto/teto-threads.wasm dist/teto/teto-threads.wasm
-
-      - name: Boot Teto through Bun and execute a guest RV64GC binary
-        run: npm run teto:test:cli
-
-      - name: Boot the committed userland and execute native GNU programmes
-        run: bash scripts/ci/test-base-userland.sh
-
-      - name: Test
-        run: node build/test/all.js
-
-  fresh-tmp-checkout:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.14"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Clone the exact candidate under /tmp
-        shell: bash
-        env:
-          TEST_REV: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -Eeuo pipefail
-          work="$(mktemp -d /tmp/mikuos-teto.XXXXXXXX)"
-          git clone --no-checkout https://github.com/kittycrow-kittyx/mikuOS.git "$work/mikuOS"
-          git -C "$work/mikuOS" checkout --detach "$TEST_REV"
-          git -C "$work/mikuOS" submodule update --init --recursive
-          echo "MIKUOS_TMP=$work/mikuOS" >> "$GITHUB_ENV"
-      - name: Build from clean source and execute Bun CLI
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          cd "$MIKUOS_TMP"
-          nice -n 10 npm install --package-lock=false
-          nice -n 10 npm run build
-          bash scripts/ci/test-teto-cli.sh
-          printf 'echo MIKUOS_DEFAULT_TETO\n/tmp/hello-rv64.39\ncommand -v dd && command -v od && command -v head && command -v bash\n' |
-            timeout 180 nice -n 10 bun run mikuos --bin assets/hello-rv64.39 hello-rv64.39 2>&1 | tee /tmp/mikuos-default-teto.log
-          grep -F 'Kernel source: Teto.' /tmp/mikuos-default-teto.log
-          grep -F 'MIKUOS_DEFAULT_TETO' /tmp/mikuos-default-teto.log
-          grep -F 'hello from Teto RV64GC' /tmp/mikuos-default-teto.log
-          for cmd in dd od head bash; do
-            tr -d '\r' < /tmp/mikuos-default-teto.log | grep -Fx "/bin/$cmd"
-          done
-          ! grep -Ei 'ENOEXEC|fell back to Thistle|not found|startup validation failed' /tmp/mikuos-default-teto.log
+        run: bun run build
+      - name: Verify pinned source
+        run: bun scripts/ci/stage-thistle-native.mts --check
+      - name: Test hosted userspace
+        run: bun src/test/all.ts --hosted-only
       - name: Upload Code Guards report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mikuos-fresh-code-guards
-          path: ${{ env.MIKUOS_TMP }}/logs/code-guards.json
+          name: mikuos-code-guards
+          path: logs/code-guards.json
           if-no-files-found: ignore
+  fresh-tmp-checkout:
+    name: Clean checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+      - name: Clone exact source
+        env:
+          TEST_REV: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -Eeuo pipefail
+          work="$(mktemp -d /tmp/mikuos-hosted.XXXXXXXX)"
+          git clone --no-checkout https://github.com/kittycrow-kittyx/mikuOS.git "$work/mikuOS"
+          git -C "$work/mikuOS" checkout --detach "$TEST_REV"
+          git -C "$work/mikuOS" submodule update --init --recursive
+          echo "MIKUOS_TMP=$work/mikuOS" >> "$GITHUB_ENV"
+      - name: Build from clean source
+        run: |
+          set -Eeuo pipefail
+          cd "$MIKUOS_TMP"
+          bun install --frozen-lockfile --ignore-scripts
+          bun run build
+          printf 'echo MIKUOS_HOSTED_BUN\n' | timeout 180 bun mikuos.ts --kernel=thistle --no-root | tee /tmp/mikuos-hosted.log
+          grep -F 'Kernel source: Thistle.' /tmp/mikuos-hosted.log
+          grep -F MIKUOS_HOSTED_BUN /tmp/mikuos-hosted.log

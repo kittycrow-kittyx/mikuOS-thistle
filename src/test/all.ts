@@ -712,7 +712,7 @@ test("generated Teto executes bounded RV64 batches with direct-source parity", a
   }
   const workerThreads = await hostModule("node:worker_threads") as { Worker: HostWorkerCtor };
   const runWorker = (worker: number): Promise<WorkerReport> => new Promise((resolve, reject) => {
-    const thread = new workerThreads.Worker(new URL("./teto-worker.js", import.meta.url), {
+    const thread = new workerThreads.Worker(new URL("./teto-worker.ts", import.meta.url), {
       workerData: { bytes: threadedBytes, memory: parallel.memory, worker, budget: 8192 },
     });
     thread.once("message", value => resolve(value as WorkerReport));
@@ -2062,7 +2062,7 @@ test("canonical mikuOS release metadata stays aligned", async () => {
   assert.equal(pkg.name, "mikuos");
   assert.equal(pkg.version, "0.3.0");
   assert.equal((withValue(pkg.scripts ?? null, value => (value["test:toolchain"] ?? null)) ?? null), "bun run thistlecc/test/test.ts");
-  assert.ok((withValue(withValue(pkg.scripts ?? null, value => (value["test:guest-toolchain"] ?? null)) ?? null, value => value.includes("build/test/toolchain.js")) ?? null));
+  assert.ok((withValue(withValue(pkg.scripts ?? null, value => (value["test:guest-toolchain"] ?? null)) ?? null, value => value.includes("src/test/toolchain.ts")) ?? null));
   assert.equal(withValue(fileConfig.os ?? null, value => value.version), "0.3");
   assert.equal(withValue(fileConfig.kernel ?? null, value => value.version), "2.1.0");
   assert.equal(loaded.os.prettyName, "初音ミクOS v｡三");
@@ -3965,9 +3965,32 @@ test("mikuOS consumes the exact Thistle -> Bake -> Baguette Teto build", async (
   }
 });
 
+const hostedOnly = process.argv.includes("--hosted-only");
+const compiledTests = new Set([
+  "generated Teto executes bounded RV64 batches with direct-source parity",
+  "Teto enforces executable, readable and writable guest mappings",
+  "Teto owns RV64 brk growth, bounds and shrink zeroing",
+  "Teto honours MAP_FIXED replacement inside MAP_NORESERVE reservations",
+  "Teto protects, synchronises and remaps anonymous RV64 memory",
+  "Teto imports and reads a deterministic hard-link-preserving root image",
+  "Teto parses and maps raw THX inside source and generated kernels",
+  "Teto builds the initial RV64 process stack inside source and generated kernels",
+  "Teto credential syscalls preserve source and WebAssembly transaction parity",
+  "byte-identical RV64GC THX and .39 execute inside generated WebAssembly",
+  "strict generated Teto keeps RV64 execution in WASM across host-serviced syscalls",
+  "mikuOS boot mode selects generated Teto without manual guest environment overrides",
+  "classic thistle.js boots the static Teto guest without a runtime server",
+  "mikuOS consumes the exact Thistle -> Bake -> Baguette Teto build",
+]);
 let pass = 0;
+let skipped = 0;
 for (const [name, fn] of tests) {
-  try { await fn(); console.log(`ok ${++pass} - ${name}`); }
-  catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  console.error(`not ok ${pass + 1} - ${name}`); throw e; }
+  if (hostedOnly && compiledTests.has(name)) {
+    skipped += 1;
+    console.log(`ok ${pass + skipped} - ${name} # SKIP requires compiled Teto`);
+    continue;
+  }
+  try { await fn(); console.log(`ok ${++pass + skipped} - ${name}`); }
+  catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  console.error(`not ok ${pass + skipped + 1} - ${name}`); throw e; }
 }
 console.log(`1..${tests.length}`);
