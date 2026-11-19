@@ -188,7 +188,6 @@ default: { k = x.startsWith("#!") ? `script, ${(x.split("\n")[0] ?? null)}` : b.
 
 // Distinct commands deliberately implement the shared App contract.
 //@cg-expect-warning
-
 export class Thsh extends App {
   constructor(name = "thsh") { super(name, "Run the Thistle command shell.", `${name} [-c command] [script [arg ...]]`); }
   // App.run is the required polymorphic command entry point, including stateless commands.

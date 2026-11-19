@@ -29,7 +29,7 @@ jobs:
       - name: Verify pinned source
         run: bash scripts/ci/verify-thistle-pin.sh
       - name: Test hosted userspace
-        run: bun src/test/all.ts --hosted-only
+        run: bun src/test/all.ts
       - name: Boot canonical kernel with custom userland
         run: bun run test:boot
       - name: Upload Code Guards report

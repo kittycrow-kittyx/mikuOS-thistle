@@ -1,5 +1,3 @@
-// This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
-//@cg-expect-warning
 import { ensure } from "../../thistle/src/core/err.js";
 import { hostModule } from "./host-module.js";
 import { withValue } from "../../thistle/src/core/err.js";

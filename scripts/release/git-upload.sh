@@ -26,8 +26,8 @@ done
 
 cd "$ROOT"
 
-[ "$(git branch --show-current)" = "main" ] ||
-    die "mikuOS must be on branch main"
+[ "$(git branch --show-current)" = "mikuOS-Thistle" ] ||
+    die "mikuOS must be on branch mikuOS-Thistle"
 
 REMOTE="$(git remote get-url origin)"
 case "$REMOTE" in
@@ -72,11 +72,11 @@ fi
 
 printf '\n===== Checking remote ancestry =====\n'
 
-git fetch origin main
+git fetch origin mikuOS-Thistle
 
-BEHIND="$(git rev-list --count HEAD..origin/main)"
+BEHIND="$(git rev-list --count HEAD..origin/mikuOS-Thistle)"
 [ "$BEHIND" -eq 0 ] ||
-    die "Local main is behind or diverged from origin/main; reconcile it before uploading"
+    die "Local mikuOS-Thistle is behind or diverged from origin/mikuOS-Thistle; reconcile it before uploading"
 
 printf '\n===== Synchronising .thistle.base =====\n'
 
@@ -175,7 +175,7 @@ fi
 
 printf '\n===== Pushing mikuOS =====\n'
 
-git push origin main
+git push origin mikuOS-Thistle
 
 printf '\nUpload complete.\n'
 printf 'Pages: https://kitty-crow.github.io/mikuOS/\n'

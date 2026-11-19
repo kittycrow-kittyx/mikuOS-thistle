@@ -8,7 +8,7 @@
     "build": "bun run build:thistle",
     "build:thistle": "bun run prepare:thistle && bun run build:thistle:verified",
     "clean": "rm -rf build dist thistle.js vendor",
-    "test": "bun run build && bash scripts/ci/verify-thistle-pin.sh && bun src/test/all.ts --hosted-only",
+    "test": "bun run build && bash scripts/ci/verify-thistle-pin.sh && bun src/test/all.ts",
     "test:toolchain": "bun run thistlecc/test/test.ts",
     "test:guest-toolchain": "bun run build && THISTLE_FUEL=0 bun src/test/toolchain.ts",
     "test:bun": "bun run build && bun src/test/bun.ts",

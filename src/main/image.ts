@@ -1,5 +1,3 @@
-// This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
-//@cg-expect-warning
 import { bad, KErr } from "../../thistle/src/core/err.js";
 import type { Kern } from "../../thistle/src/core/kernel.js";
 import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
