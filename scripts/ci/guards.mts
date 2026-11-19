@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { loadProject } from "@kitty-crow/code-guards/src/project.ts";
+import { ownedReuseProject } from "./guard-scope.ts";
 import {
   noNestedIf, typeReuse, functionQuality, moduleCohesion, codeHealth,
   crossModule, documentation, repoHygiene, enterpriseLookingNaming, reviewPractices,
@@ -28,7 +29,7 @@ const checked = async (name: string, run: () => Finding[] | Promise<Finding[]>):
 // still resolves upstream types, but dependency files are not visited.
 const findings = resolveExpectations(project.root, project.files, [
   ...noNestedIf(project),
-  ...await checked("type reuse", () => typeReuse(project, true)),
+  ...await checked("type reuse", () => typeReuse(ownedReuseProject(project), true)),
   ...await checked("function quality", () => functionQuality(project, true)),
   ...await checked("module cohesion", () => moduleCohesion(project, true)),
   ...codeHealth(project, true),

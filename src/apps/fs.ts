@@ -16,8 +16,6 @@ export class Pwd extends App {
   override async run(s: Sys): Promise<number> { await s.out(s.cwd + "\n"); return 0; }
 }
 
-// Ls deliberately implements the shared App contract; semantic overlap can vary between runners.
-//@cg-ignore
 export class Ls extends App {
   constructor() { super("ls", "List directory contents.", "ls [-alhR] [path ...]"); }
 
@@ -51,8 +49,6 @@ export class Ls extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Cat extends App {
   constructor() { super("cat", "Concatenate files to standard output.", "cat [-n] [file ...]"); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -84,8 +80,6 @@ export class Cat extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Touch extends App {
   constructor() { super("touch", "Create files or update their modification time.", "touch file ..."); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -95,8 +89,6 @@ export class Touch extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Mkdir extends App {
   constructor() { super("mkdir", "Create directories.", "mkdir [-p] [-m mode] dir ..."); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -120,15 +112,11 @@ export class Mkdir extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Rmdir extends App {
   constructor() { super("rmdir", "Remove empty directories.", "rmdir dir ..."); }
   override async run(s: Sys, a: string[]): Promise<number> { if (!a.length) bad("EINVAL", "rmdir: missing directory"); for (const p of a) s.rm(p, true); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Rm extends App {
   constructor() { super("rm", "Remove files or directory trees.", "rm [-rf] path ..."); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -151,8 +139,6 @@ export class Rm extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Cp extends App {
   constructor() { super("cp", "Copy files and directory trees.", "cp [-r] source ... dest"); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -183,8 +169,6 @@ default: {  s.writeb(b0, s.readb(a0)); s.chmod(b0, st.mode);  }
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Mv extends App {
   constructor() { super("mv", "Move or rename files.", "mv source ... dest"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -197,22 +181,16 @@ export class Mv extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Ln extends App {
   constructor() { super("ln", "Create hard or symbolic links.", "ln [-s] target link"); }
   override async run(s: Sys, a: string[]): Promise<number> { const sym = (a[0] ?? null) === "-s"; if (sym) a.shift(); if (a.length !== 2) bad("EINVAL", "ln: target and link required"); sym ? s.symlink(requireValue(a[0] ?? null, "src/apps/fs.ts:158"), requireValue(a[1] ?? null, "src/apps/fs.ts:158")) : s.link(requireValue(a[0] ?? null, "src/apps/fs.ts:158"), requireValue(a[1] ?? null, "src/apps/fs.ts:158")); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Readlink extends App {
   constructor() { super("readlink", "Print symbolic-link targets.", "readlink link ..."); }
   override async run(s: Sys, a: string[]): Promise<number> { for (const p of a) await s.out(s.readlink(p) + "\n"); return a.length ? 0 : 1; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class StatApp extends App {
   constructor() { super("stat", "Display inode metadata.", "stat path ..."); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -233,22 +211,16 @@ const symMode = (old: number, x: string): number => {
   return (m[2] ?? null) === "+" ? old | bits : (m[2] ?? null) === "-" ? old & ~bits : (old & ~(who.includes("u") || who.includes("a") ? 0o700 : 0) & ~(who.includes("g") || who.includes("a") ? 0o070 : 0) & ~(who.includes("o") || who.includes("a") ? 0o007 : 0)) | bits;
 };
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Chmod extends App {
   constructor() { super("chmod", "Change file mode bits.", "chmod mode path ..."); }
   override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chmod arguments"); const m = requireValue(a.shift() ?? null, "src/apps/fs.ts:188"); for (const p of a) s.chmod(p, /^[0-7]+$/.test(m) ? Number.parseInt(m, 8) : symMode(s.stat(p, false).mode, m)); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Chown extends App {
   constructor() { super("chown", "Change file owner and group.", "chown uid[:gid] path ..."); }
   override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chown arguments"); const [u = "", g = null] = requireValue(a.shift() ?? null, "src/apps/fs.ts:193").split(":"); const uid = Number(u), gid = g === null ? uid : Number(g); if (!Number.isInteger(uid) || !Number.isInteger(gid)) bad("EINVAL", "numeric ids required"); for (const p of a) s.chown(p, uid, gid); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Find extends App {
   constructor() { super("find", "Walk a directory tree.", "find [path] [-name glob] [-type f|d|l]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -265,15 +237,11 @@ export class Find extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class BaseName extends App {
   constructor() { super("basename", "Strip directory components.", "basename path"); }
   override async run(s: Sys, a: string[]): Promise<number> { const p = a[0] ?? bad("EINVAL", "path required"); await s.out(base(p) + "\n"); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class DirName extends App {
   constructor() { super("dirname", "Strip the final path component.", "dirname path"); }
   override async run(s: Sys, a: string[]): Promise<number> { const x = a[0] ?? bad("EINVAL", "path required"); const p = x.replace(/\/+$/, ""); await s.out((p.slice(0, p.lastIndexOf("/")) || (p.startsWith("/") ? "/" : ".")) + "\n"); return 0; }

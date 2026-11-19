@@ -39,8 +39,6 @@ const exists = (s: Sys, p: string): boolean => {
   try { s.stat(p); return true; } catch { return false; }
 };
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Wget extends App {
   constructor() {
     super("wget", "Retrieve files over HTTP or HTTPS.", "wget [-qS] [--spider] [-O file] [-T sec] [--max-size bytes] URL ...");

@@ -6,8 +6,6 @@ import type { Sig } from "../../thistle/src/core/proc.js";
 import { bad } from "../../thistle/src/core/err.js";
 import { narg } from "./util.js";
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Ps extends App {
   constructor() { super("ps", "Report live kernel processes.", "ps [-ef]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -21,8 +19,6 @@ export class Ps extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Kill extends App {
   constructor() { super("kill", "Send a signal to a process or process group.", "kill [-SIGNAL] pid ..."); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -39,8 +35,6 @@ break; }
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Sleep extends App {
   constructor() { super("sleep", "Pause for a duration.", "sleep number[s|m|h]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -53,8 +47,6 @@ export class Sleep extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Time extends App {
   constructor() { super("time", "Run a command and report elapsed time.", "time command [arg ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {

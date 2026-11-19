@@ -11,8 +11,6 @@ import { LineEditor } from "../sh/editor.js";
 import type { Tty } from "../../thistle/src/io/tty.js";
 import { Exe, codec, isExe, isObj } from "../../thistle/thistle-asm/fmt.js";
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class TrueApp extends App {
   constructor() { super("true", "Return a successful exit status."); }
   override async run(): Promise<number> { return 0; }
@@ -23,8 +21,6 @@ export class FalseApp extends App {
   override async run(): Promise<number> { return 1; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Env extends App {
   constructor() { super("env", "Print an environment or run with modified values.", "env [NAME=value ...] [command [arg ...]]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -36,15 +32,11 @@ export class Env extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class PrintEnv extends App {
   constructor() { super("printenv", "Print environment values.", "printenv [NAME ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> { if (!a.length) return new Env().run(s, []); let n = 0; for (const k of a) { const v = s.env(k); if (v === null) n = 1; else await s.out(`${v}\n`); } return n; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Id extends App {
   constructor() { super("id", "Print process identity."); }
   override async run(s: Sys): Promise<number> {
@@ -56,15 +48,11 @@ export class Id extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Whoami extends App {
   constructor() { super("whoami", "Print the effective user name."); }
   override async run(s: Sys): Promise<number> { await s.out(`${s.euid === 0 ? "root" : s.euid === 1000 ? "guest" : s.euid}\n`); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Uname extends App {
   constructor() { super("uname", "Print kernel information.", "uname [-asrnm]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -80,8 +68,6 @@ export class Uname extends App {
 
 const pad = (n: number): string => String(n).padStart(2, "0");
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class DateApp extends App {
   constructor() { super("date", "Print the current date and time.", "date [-u] [+format]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -92,64 +78,46 @@ export class DateApp extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Uptime extends App {
   constructor() { super("uptime", "Show time since kernel boot."); }
   override async run(s: Sys): Promise<number> { const n = Math.floor(s.uptime() / 1000); await s.out(`up ${Math.floor(n / 3600)}:${pad(Math.floor(n / 60) % 60)}:${pad(n % 60)}, ${s.ps().length} processes\n`); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Hostname extends App {
   constructor() { super("hostname", "Get or set the kernel host name.", "hostname [name]"); }
   override async run(s: Sys, a: string[]): Promise<number> { if ((a[0] ?? null)) { ensure(!(s.euid), () => bad("EPERM", "hostname")); s.k.host = requireValue(a[0] ?? null, "hostname"); s.setenv("HOSTNAME", (requireValue(a[0] ?? null, "src/apps/sys.ts:87") ?? null)); } else await s.out(s.k.host + "\n"); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Dmesg extends App {
   constructor() { super("dmesg", "Print the kernel ring buffer."); }
   override async run(s: Sys): Promise<number> { await s.out(s.logs().join("\n") + "\n"); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Free extends App {
   constructor() { super("free", "Show virtual kernel memory use.", "free [-h]"); }
   override async run(s: Sys, a: string[]): Promise<number> { const h = a.includes("-h"), total = s.k.fs.cap, used = s.k.fs.used(), f = (n: number) => h ? size(n) : String(n); await s.out("              total        used        free\n"); await s.out(`Mem:   ${f(total).padStart(12)}${f(used).padStart(12)}${f(total - used).padStart(12)}\n`); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Df extends App {
   constructor() { super("df", "Show virtual filesystem space.", "df [-h]"); }
   override async run(s: Sys, a: string[]): Promise<number> { const h = a.includes("-h"), t = s.k.fs.cap, u = s.k.fs.used(), f = (n: number) => h ? size(n) : String(Math.ceil(n / 1024)), d = s.k.disk ? "hostfs" : "memfs"; await s.out("Filesystem      Size      Used     Avail Use% Mounted on\n"); await s.out(`${d.padEnd(10)}${f(t).padStart(10)}${f(u).padStart(10)}${f(t - u).padStart(10)} ${String(Math.round(u / t * 100)).padStart(3)}% /\n`); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Mount extends App {
   constructor() { super("mount", "Show mounted kernel filesystems."); }
   override async run(s: Sys): Promise<number> { await s.out(s.k.mounts().map(x => `${x.src} on ${x.at} type ${x.kind} (${x.opt})`).join("\n") + "\n"); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Clear extends App {
   constructor() { super("clear", "Clear the terminal."); }
   override async run(s: Sys): Promise<number> { await s.out("\x1b[3J\x1b[2J\x1b[H"); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Which extends App {
   constructor() { super("which", "Locate commands in PATH.", "which command ..."); }
   override async run(s: Sys, a: string[]): Promise<number> { let n = 0; for (const x of a) { try { await s.out(s.which(x) + "\n"); } catch { n = 1; } } return n; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Help extends App {
   constructor() { super("help", "List installed programs or describe one.", "help [command]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -164,8 +132,6 @@ export class Help extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class FileApp extends App {
   constructor() { super("file", "Identify executable and data formats.", "file path ..."); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -186,8 +152,6 @@ default: { k = x.startsWith("#!") ? `script, ${(x.split("\n")[0] ?? null)}` : b.
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Thsh extends App {
   constructor(name = "thsh") { super(name, "Run the Thistle command shell.", `${name} [-c command] [script [arg ...]]`); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -303,15 +267,11 @@ const truth = (s: Sys, a: string[]): boolean => {
   return false;
 };
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class TestApp extends App {
   constructor(name = "test") { super(name, "Evaluate file, string and integer expressions.", `${name} expression`); }
   override async run(s: Sys, a: string[]): Promise<number> { if (this.name === "[" && (a.at(-1) ?? null) === "]") a.pop(); return truth(s, a) ? 0 : 1; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Expr extends App {
   constructor() { super("expr", "Evaluate a simple integer or string expression.", "expr value operator value"); }
   override async run(s: Sys, a: string[]): Promise<number> {

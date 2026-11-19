@@ -18,8 +18,6 @@ const lines = (x: string): string[] => {
   return a;
 };
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Echo extends App {
   constructor() { super("echo", "Print arguments.", "echo [-ne] [arg ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -31,8 +29,6 @@ export class Echo extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Printf extends App {
   constructor() { super("printf", "Format and print values.", "printf format [value ...]"); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -55,8 +51,6 @@ export class Printf extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Tail extends App {
   constructor() { super("tail", "Print the final lines of input.", "tail [-n count] [file ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -72,8 +66,6 @@ break; }
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Wc extends App {
   constructor() { super("wc", "Count lines, words and bytes.", "wc [-lwc] [file ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -89,8 +81,6 @@ export class Wc extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Grep extends App {
   constructor() { super("grep", "Select lines matching a pattern.", "grep [-ivncE] pattern [file ...]"); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -117,8 +107,6 @@ export class Grep extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Sort extends App {
   constructor() { super("sort", "Sort text lines.", "sort [-nru] [file ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -133,8 +121,6 @@ export class Sort extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Uniq extends App {
   constructor() { super("uniq", "Filter adjacent duplicate lines.", "uniq [-cd] [file]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -160,8 +146,6 @@ const range = (x: string): number[] => {
   return out;
 };
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Cut extends App {
   constructor() { super("cut", "Select fields or characters.", "cut -d delim -f list | -c list [file ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -183,8 +167,6 @@ const set = (s: string): string => s.replace(/(.)-(.)/g, (_m, a: string, b: stri
   let x = ""; for (let i = requireValue(a.codePointAt(0) ?? null, "src/apps/text.ts:157"); i <= requireValue(b.codePointAt(0) ?? null, "src/apps/text.ts:157"); i++) x += String.fromCodePoint(i); return x;
 });
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Tr extends App {
   constructor() { super("tr", "Translate or delete characters.", "tr [-d] set1 [set2]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -202,8 +184,6 @@ break; }
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Sed extends App {
   constructor() { super("sed", "Apply a substitution to text.", "sed [-n] 's/pattern/replacement/[gp]' [file ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -221,8 +201,6 @@ export class Sed extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Tee extends App {
   constructor() { super("tee", "Copy standard input to files and output.", "tee [-a] [file ...]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -233,8 +211,6 @@ export class Tee extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Seq extends App {
   constructor() { super("seq", "Print a numeric sequence.", "seq [first [step]] last"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -247,8 +223,6 @@ export class Seq extends App {
   }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Yes extends App {
   constructor() { super("yes", "Repeat a line until interrupted.", "yes [text]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
@@ -271,15 +245,11 @@ const b64d = (x: string): Uint8Array => {
   for (let i = 0; i < x.length; i += 4) { const n = (abc.indexOf(requireValue(x[i] ?? null, "src/apps/text.ts:230")) << 18) | (abc.indexOf(requireValue(x[i + 1] ?? null, "src/apps/text.ts:230")) << 12) | ((abc.indexOf(requireValue(x[i + 2] ?? null, "src/apps/text.ts:230")) & 63) << 6) | (abc.indexOf(requireValue(x[i + 3] ?? null, "src/apps/text.ts:230")) & 63); out.push((n >> 16) & 255); if ((x[i + 2] ?? null) !== "=") out.push((n >> 8) & 255); if ((x[i + 3] ?? null) !== "=") out.push(n & 255); } return new Uint8Array(out);
 };
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Base64 extends App {
   constructor() { super("base64", "Encode or decode base64 data.", "base64 [-d] [file]"); }
   override async run(s: Sys, a: string[]): Promise<number> { const d = (a[0] ?? null) === "-d"; if (d) a.shift(); const b = (a[0] ?? null) ? s.readb((requireValue(a[0] ?? null, "src/apps/text.ts:237") ?? null)) : await s.inb(); await s.out(d ? b64d(dec(b)) : b64e(b) + "\n"); return 0; }
 }
 
-// Distinct commands deliberately implement the shared App contract.
-//@cg-expect-warning
 export class Strings extends App {
   constructor() { super("strings", "Print readable strings in binary data.", "strings [-n length] file ..."); }
   override async run(s: Sys, a: string[]): Promise<number> { let n = 4; if ((a[0] ?? null) === "-n") { n = narg(a[1] ?? ""); a.splice(0, 2); } for (const p of a) { const x = dec(s.readb(p)); for (const m of x.matchAll(/[\x20-\x7e]+/g)) if (m[0].length >= n) await s.out(m[0] + "\n"); } return 0; }

@@ -51,6 +51,7 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 - [tool/post](modules/tool/post.md)
 
 - [Checked guard exceptions](guard-exceptions.md)
+- [Owned type-reuse scope](modules/scripts/guard-scope.md)
 
 ## Canonical kernel
 
