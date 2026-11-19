@@ -23,7 +23,7 @@
       "name": "Thistle",
       "repository": "kittycrow-kittyx/thistle",
       "path": "deps/thistle",
-      "commit": "3da1c6558b2c529a19a5597b406c701b29f98948",
+      "commit": "677c2e11b9a922092fac280eadbd082751a6e684",
       "relationship": "native-kernel",
       "direct": true,
       "updatePolicy": "pull-request"
