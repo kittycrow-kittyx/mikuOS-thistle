@@ -2,7 +2,7 @@
 
 | Path | Purpose |
 | --- | --- |
-| `thistle` | Canonical kernel, pinned to Thistle v2.2.2 |
+| `thistle` | Canonical kernel, pinned to Thistle v2.2.3 |
 | `thistle/thistle-asm` | Assembler and binary tools inherited through Thistle |
 | `thistlecc` | Guest compiler driver |
 
