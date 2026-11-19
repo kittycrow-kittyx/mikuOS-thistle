@@ -1,6 +1,6 @@
 export interface WorkerReport { calls: number; claims: number; idle: number; contention: number; terminal: number; }
 import { hostModule } from "../main/host-module.js";
-import { withValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
 interface WorkerPort {
   postMessage(value: WorkerReport): void;
 }

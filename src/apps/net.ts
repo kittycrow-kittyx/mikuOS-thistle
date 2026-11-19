@@ -1,9 +1,9 @@
-import { requireValue } from "../core/err.js";
-import { App } from "./base.js";
-import type { Sys } from "../core/sys.js";
-import { KErr, bad, msg } from "../core/err.js";
-import type { Hdr } from "../net/net.js";
-import { enc } from "../io/stream.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { App } from "../../deps/thistle/src/apps/base.js";
+import type { Sys } from "../../deps/thistle/src/core/sys.js";
+import { KErr, bad, msg } from "../../deps/thistle/src/core/err.js";
+import type { Hdr } from "../../deps/thistle/src/net/net.js";
+import { enc } from "../../deps/thistle/src/io/stream.js";
 import { size } from "./util.js";
 
 interface WOpt {

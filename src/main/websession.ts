@@ -1,9 +1,10 @@
-import { withValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
 import { boot } from "./boot.js";
 import type { Host, Os } from "./boot.js";
 import type { SystemConfig } from "../core/config.js";
-import type { Tree } from "../fs/tree.js";
-import { Net, FetchDev } from "../net/net.js";
+import type { Tree } from "../../deps/thistle/src/fs/tree.js";
+import { Net } from "../../deps/thistle/src/net/net.js";
+import { FetchDev } from "../../deps/thistle/src/net/host-fetch.js";
 import { LineEditor } from "../sh/editor.js";
 import type { TetoImageProvider } from "../teto/loader.js";
 import type { KernelMode } from "../teto/provider.js";

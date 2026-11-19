@@ -1,13 +1,14 @@
-import { ensure } from "../core/err.js";
-import type { TerminalState } from "../io/stream.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
-import { KErr, bad, msg } from "../core/err.js";
-import { Fd } from "../core/proc.js";
-import type { Io, Proc } from "../core/proc.js";
-import type { Sys } from "../core/sys.js";
-import { MemIn, Pipe, enc } from "../io/stream.js";
-import type { Out } from "../io/stream.js";
+import { Stream } from "../../deps/thistle/src/io/stream.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
+import type { TerminalState } from "../../deps/thistle/src/io/stream.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { KErr, bad, msg } from "../../deps/thistle/src/core/err.js";
+import { Fd } from "../../deps/thistle/src/core/proc.js";
+import type { Io, Proc } from "../../deps/thistle/src/core/proc.js";
+import type { Sys } from "../../deps/thistle/src/core/sys.js";
+import { MemIn, Pipe, enc } from "../../deps/thistle/src/io/stream.js";
+import type { Out } from "../../deps/thistle/src/io/stream.js";
 import { expandHereDoc, lex, parse, split } from "./lex.js";
 import type { Cmd, Tok, Unit, Word } from "./lex.js";
 import { decodeHistory, encodeHistory, globMatches, historyMatches as findHistoryMatches } from "./history.js";
@@ -34,15 +35,13 @@ export class ShExit extends Error {
   constructor(readonly code: number) { super(`shell exit ${code}`); }
 }
 
-class FsOut implements Out {
-  "tty": TerminalState | null = null;
+class FsOut extends Stream implements Out {
 
-  "hold": (() => void) | null = null;
-  "close": (() => void) | null = null;
 
   private first = true;
 
   constructor(private readonly s: Sys, private readonly path: string, private readonly add: boolean) {
+    super();
     if (!add) s.writeb(path, new Uint8Array());
   }
 
@@ -55,11 +54,8 @@ class FsOut implements Out {
 
 // The shared shape is an inherited protocol; runtime identities and payload roles remain distinct.
 //@cg-expect-warning
-class CaptureOut implements Out {
-  "tty": TerminalState | null = null;
+class CaptureOut extends Stream implements Out {
 
-  "hold": (() => void) | null = null;
-  "close": (() => void) | null = null;
 
   private readonly chunks: Uint8Array[] = [];
 
@@ -182,7 +178,7 @@ export class Shell {
     const code = this.last;
 
     for (const raw of split(src)) {
-      const env = this.s.env(null) as Map<string, string>;
+      const env = this.s.env() as Map<string, string>;
       const units = parse(
         lex(raw.src, env, this.s.pid, code, this.lastBg),
       );
@@ -325,7 +321,7 @@ export class Shell {
       let heredocAt = 0;
 
       for (const r of split(commandSource)) {
-        const env = this.s.env(null) as Map<string, string>;
+        const env = this.s.env() as Map<string, string>;
         const u = parse(
           lex(r.src, env, this.s.pid, code, this.lastBg),
         )[0] ?? bad("EINVAL", "empty command");
@@ -388,7 +384,7 @@ export class Shell {
     const previousLastBg = this.lastBg;
     const previousCwd = this.s.cwd;
 
-    const environment = this.s.env(null) as Map<string, string>;
+    const environment = this.s.env() as Map<string, string>;
     const previousEnvironment = new Map(environment);
     const previousAliases = new Map(this.aliases);
 
@@ -433,7 +429,7 @@ export class Shell {
     let w = c.words;
     const a = (w[0] ?? null) ? (this.aliases.get(requireValue((w[0] ?? null) ?? null, "src/sh/shell.ts:435").v) ?? null) : null;
     if (a) {
-      const env = this.s.env(null) as Map<string, string>;
+      const env = this.s.env() as Map<string, string>;
       const x = lex(a, env, this.s.pid, this.last, this.lastBg).filter(t => !t.op).map(t => ({ v: t.v, q: t.q }));
       w = [...x, ...w.slice(1)];
     }
@@ -499,7 +495,7 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
       let name = requireValue(a[0] ?? null, "src/sh/shell.ts:478");
       let args = a.slice(1);
       if (built.has(name)) { args = ["-c", [name, ...args].map(this.quote).join(" ")]; name = "thsh"; }
-      const env = this.s.env(null) as Map<string, string>;
+      const env = this.s.env() as Map<string, string>;
       for (const [k, v] of asn.val) env.set(k, v);
       const p = this.s.start(name, args, {"fds": null, "cwd": null,  io, env, pgid });
       pgid ??= p.pid;
@@ -542,9 +538,9 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
 
   private async withIo(io: Io, fn: () => Promise<number>): Promise<number> {
     const old = [(this.s.p.fds.get(0) ?? null), (this.s.p.fds.get(1) ?? null), (this.s.p.fds.get(2) ?? null)];
-    this.s.p.fds.set(0, new Fd(io.sin, null, "/dev/stdin", true));
-    this.s.p.fds.set(1, new Fd(null, io.sout, "/dev/stdout", false, true));
-    this.s.p.fds.set(2, new Fd(null, io.serr, "/dev/stderr", false, true));
+    this.s.p.fds.set(0, new Fd(io.sin, null, "/dev/stdin", { rd: true, wr: false, add: false, clo: false }));
+    this.s.p.fds.set(1, new Fd(null, io.sout, "/dev/stdout", { rd: false, wr: true, add: false, clo: false }));
+    this.s.p.fds.set(2, new Fd(null, io.serr, "/dev/stderr", { rd: false, wr: true, add: false, clo: false }));
     try { return await fn(); }
     finally { for (let i = 0; i < 3; i++) if ((old[i] ?? null)) this.s.p.fds.set(i, requireValue(old[i] ?? null, "src/sh/shell.ts:528")); }
   }
@@ -616,7 +612,7 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
           }
           const proc = this.s.start(requireValue(target ?? null, "src/sh/shell.ts:593"), args, {"fds": null, "pgid": null, "cwd": null,
             io: this.base(),
-            env: this.s.env(null) as Map<string, string>,
+            env: this.s.env() as Map<string, string>,
           });
           try { return await proc.done; }
           finally { this.s.reap(proc.pid); }
@@ -637,7 +633,7 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
         for (const x of a) { const i = x.indexOf("="); if (i < 0) { ensure(/^[A-Za-z_][A-Za-z0-9_]*$/.test(x), () => bad("EINVAL", `export: ${x}`)); (this.s.env(x) === null) && (this.s.setenv(x, "")); } else { ensure(!(i < 1), () => bad("EINVAL", `export: ${x}`)); this.s.setenv(x.slice(0, i), x.slice(i + 1)); } }
         return 0;
       case "unset": for (const x of a) this.s.unset(x); return 0;
-      case "set": for (const [k, v] of [...(this.s.env(null) as Map<string, string>)].sort()) await this.s.out(`${k}=${this.quote(v)}\n`); return 0;
+      case "set": for (const [k, v] of [...(this.s.env() as Map<string, string>)].sort()) await this.s.out(`${k}=${this.quote(v)}\n`); return 0;
       case "alias":
         if (!a.length) for (const [k, v] of this.aliases) await this.s.out(`alias ${k}=${this.quote(v)}\n`);
         // Command, job and here-document state remain scoped to their current execution phase.

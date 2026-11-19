@@ -3,7 +3,7 @@
     "name": "Thistle",
     "prettyName": "Thistle",
     "id": "thistle",
-    "version": "2.1.0",
+    "version": "2.2.1",
     "machine": "Thistle64 RV64GC"
   },
   "os": {
@@ -14,6 +14,6 @@
     "homeUrl": "https://kittycrow.dev/mikuos"
   },
   "messages": {
-    "tetoBanner": ""
+    "nativeBanner": ""
   }
 }

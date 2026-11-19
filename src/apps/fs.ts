@@ -1,12 +1,12 @@
-import { ensure } from "../core/err.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
-import { App } from "./base.js";
-import type { Sys } from "../core/sys.js";
-import { fmtMode, norm, Reg, Sym } from "../fs/vfs.js";
-import type { VNode } from "../fs/vfs.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { App } from "../../deps/thistle/src/apps/base.js";
+import type { Sys } from "../../deps/thistle/src/core/sys.js";
+import { fmtMode, norm, Reg, Sym } from "../../deps/thistle/src/fs/vfs.js";
+import type { VNode } from "../../deps/thistle/src/fs/vfs.js";
 import { cols, globRx, size } from "./util.js";
-import { bad, KErr } from "../core/err.js";
+import { bad, KErr } from "../../deps/thistle/src/core/err.js";
 
 const base = (p: string): string => norm(p).split("/").filter(Boolean).at(-1) ?? "/";
 const join = (a: string, b: string): string => a === "/" ? `/${b}` : `${a.replace(/\/$/, "")}/${b}`;

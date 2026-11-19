@@ -1,21 +1,13 @@
 # System architecture
 
-mikuOS supplies the root image, accounts, shell, command set and host
-integration. Guest programmes use the kernel's process and filesystem
-interfaces.
-
-The CLI and browser on `main` expose `teto`, `thistle` and `auto` kernel modes.
-Teto is the default; `auto` permits fallback to the hosted TypeScript kernel.
-Explicit Teto selection reports kernel-loading errors. The two execution
-paths share the same userspace. Native Rei, Rusty Rei and the Linux
-compatibility architecture are separate from the hosted modes documented
-here.
+On `mikuOS-Thistle`, mikuOS supplies the distribution root, accounts, shell, commands, CLI and browser front ends, and persistence adapters. The exact `deps/thistle` pin supplies the complete canonical kernel: processes, scheduling, VFS, terminal line discipline, executable dispatch, RV64 execution and syscalls, WASI and host capability contracts.
 
 | Path | Purpose |
 | --- | --- |
-| `src/main` | CLI, browser, boot and persistent root adapters |
-| `src/apps` | Built-in commands |
-| `src/sh` | Shell and line editor |
+| `deps/thistle` | Canonical kernel, imported directly |
+| `src/main` | Distribution boot, CLI, browser and persistence adapters |
+| `src/apps` | Built-in userland commands |
+| `src/sh` | Userland shell and line editor |
+| `.thistle.base` | Custom immutable base userland |
 
-Native kernel source is staged from the Thistle revision selected by the
-build. See [source provenance](teto-source-provenance.md).
+The default Thistle mode has no separate local kernel or interpreter. This branch rejects explicit Teto selection. Other mikuOS branches are outside this refactor. See [canonical integration](canonical-kernel.md) for pin verification and the interactive boot regression.

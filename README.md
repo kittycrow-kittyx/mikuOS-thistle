@@ -62,3 +62,7 @@ alternative. See [root image and userland](docs/userland.md).
 licences; see [third-party software](THIRD_PARTY.md).
 
 The RV64GC execution adapter calls the pinned Thistle native instruction core directly. The old locally implemented instruction decoder is removed; the host cannot select a second RV64GC engine. Host process, filesystem and syscall compatibility services still need migration to the upstream kernel boundary. This is an intermediate integration step, not complete kernel separation.
+
+## Canonical kernel
+
+The `mikuOS-Thistle` branch consumes `deps/thistle` directly. Kernel mechanisms live in that pinned repository; mikuOS supplies its distribution and custom `.thistle.base` userland. See [the integration and boot checks](docs/canonical-kernel.md).

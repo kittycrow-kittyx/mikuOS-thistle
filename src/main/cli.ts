@@ -1,9 +1,9 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { ensure } from "../core/err.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
 import { hostModule } from "./host-module.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
 import { boot } from "./boot.js";
 import { isExe } from "../asm/fmt.js";
 import { DirTree } from "./dir.js";

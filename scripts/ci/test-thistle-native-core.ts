@@ -1,4 +1,4 @@
-import { requireValue } from "../../src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { rv64Branch } from "../../deps/thistle/src/core/rv64-branch.ts";

@@ -4,28 +4,32 @@ import { parseJson } from "../core/json.js";
 import type { WorkerReport, SchedulerWorkerData } from "./teto-worker.js";
 import assert from "node:assert/strict";
 import { hostModule } from "../main/host-module.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
 import { runInNewContext } from "node:vm";
 import { boot } from "../main/boot.js";
 import { ROOT_IMAGE_VERSION } from "../main/image.js";
-import { FnApp } from "../apps/base.js";
+import { FnApp } from "../../deps/thistle/src/apps/base.js";
 import type { Ch, Os } from "../main/boot.js";
-import { KErr } from "../core/err.js";
+import { KErr } from "../../deps/thistle/src/core/err.js";
 import { demoWasm } from "../wasm/demo.js";
-import { dec, enc } from "../io/stream.js";
-import { Net, NetDev } from "../net/net.js";
-import type { DReq, DRes } from "../net/net.js";
+import { dec, enc } from "../../deps/thistle/src/io/stream.js";
+import { Net, NetDev } from "../../deps/thistle/src/net/net.js";
+import type { DReq, DRes } from "../../deps/thistle/src/net/net.js";
 import { Asm } from "../asm/asm.js";
 import { Link } from "../asm/link.js";
 import { Exe, Obj, codec } from "../asm/fmt.js";
-import type { Tree, TreeEnt } from "../fs/tree.js";
+import type { Tree, TreeEnt } from "../../deps/thistle/src/fs/tree.js";
 import { DirTree } from "../main/dir.js";
-import { Mem64 } from "../vm/mem64.js";
-import { Rv64 } from "../vm/rv64.js";
-import { Sys } from "../core/sys.js";
-import { Tty } from "../io/tty.js";
+import { Mem64 } from "../../deps/thistle/src/vm/mem64.js";
+import { Rv64 } from "../../deps/thistle/src/vm/rv64.js";
+import { Sys } from "../../deps/thistle/src/core/sys.js";
+import { Kern } from "../../deps/thistle/src/core/kernel.js";
+import { Proc } from "../../deps/thistle/src/core/proc.js";
+import { Vfs } from "../../deps/thistle/src/fs/vfs.js";
+import { Tty } from "../../deps/thistle/src/io/tty.js";
 import { DEFAULT_CONFIG } from "../core/config.js";
+import { DEFAULT_CONFIG as CANONICAL_CONFIG } from "../../deps/thistle/src/core/config.js";
 import { IDENTITY } from "../core/identity.js";
 import { LineEditor } from "../sh/editor.js";
 import { hostConfig, mergeConfig } from "../main/config.js";
@@ -95,7 +99,7 @@ import {
 } from "../../deps/thistle/src/native/kernel.js";
 import { thistleLoadThx as tetoLoadThx } from "../../deps/thistle/src/native/thx.js";
 import { thistleBuildInitialStack as tetoBuildInitialStack } from "../../deps/thistle/src/native/start.js";
-import { serializeTetoVfs } from "../teto/vfs-host.js";
+import { serializeThistleVfs } from "../../deps/thistle/src/native/vfs-image.js";
 import {
   thistleLoadVfs as tetoLoadVfs,
   thistleVfsDentryCount as tetoVfsDentryCount,
@@ -205,6 +209,15 @@ class MemTree implements Tree {
 const tests: Array<[string, () => void | Promise<void>]> = [];
 const test = (name: string, fn: () => void | Promise<void>): void => { tests.push([name, fn]); };
 const show = <T>(value: T): string => JSON.stringify(value, <V>(_key: string, item: V) => typeof item === "bigint" ? `${item}n` : item) ?? String(value);
+
+test("mikuOS composes the actual canonical kernel objects", async () => {
+  const r = new Rig();
+  await r.os.ready;
+  assert.equal(r.os.k.constructor, Kern);
+  assert.equal(r.os.p.constructor, Proc);
+  assert.equal(r.os.s.constructor, Sys);
+  assert.equal(r.os.k.fs.constructor, Vfs);
+});
 
 test("Thistle boots without a second RV64 interpreter", async () => {
   const original = boot({"halt": null, "tree": null, "requireTree": null, "pkg": null, "config": null, "account": null, "setId": null, "teto": null, "onBootProgress": null, put: () => {}, kernelMode: "thistle" }, null);
@@ -1288,11 +1301,11 @@ test("Teto imports and reads a deterministic hard-link-preserving root image", a
     {"data": null, "sum": null, "size": null, "source": null, p: "/loop-b", k: "l", id: 10, mode: 0o777, uid: 0, gid: 0, at: stamp, mt: stamp, ct: stamp, to: "loop-a" },
     {"data": null, "sum": null, "size": null, "source": null, p: "/absolute-link", k: "l", id: 11, mode: 0o777, uid: 0, gid: 0, at: stamp, mt: stamp, ct: stamp, to: "/etc/os-release" },
   ];
-  const image = serializeTetoVfs(fixture);
-  assert.equal(show(serializeTetoVfs([...fixture].reverse())), show(image), "Teto VFS serialisation is not deterministic");
+  const image = serializeThistleVfs(fixture);
+  assert.equal(show(serializeThistleVfs([...fixture].reverse())), show(image), "Teto VFS serialisation is not deterministic");
   let rejectedDirectoryLink = false;
   try {
-    serializeTetoVfs([...fixture, { ...requireValue(fixture.find(entry => entry.p === "/etc") ?? null, "src/test/all.ts:1240"), p: "/etc-hard" }]);
+    serializeThistleVfs([...fixture, { ...requireValue(fixture.find(entry => entry.p === "/etc") ?? null, "src/test/all.ts:1240"), p: "/etc-hard" }]);
   } catch { rejectedDirectoryLink = true; }
   assert.ok(rejectedDirectoryLink, "Teto accepted a hard-linked directory with ambiguous parent traversal");
 
@@ -1940,7 +1953,7 @@ test("configuration separates kernel and OS identity with legacy compatibility",
   assert.equal(IDENTITY.guest.architecture, "Thistle64 RV64GC");
   assert.equal(IDENTITY.guest.executable, "THX");
   assert.equal(DEFAULT_CONFIG.kernel.name, "Thistle");
-  assert.equal(DEFAULT_CONFIG.kernel.version, "2.1.0");
+  assert.equal(DEFAULT_CONFIG.kernel.version, CANONICAL_CONFIG.kernel.version);
   assert.equal(DEFAULT_CONFIG.os.name, "mikuOS");
   assert.equal(DEFAULT_CONFIG.os.version, "0.3");
 
@@ -2064,13 +2077,13 @@ test("canonical mikuOS release metadata stays aligned", async () => {
   assert.equal((withValue(pkg.scripts ?? null, value => (value["test:toolchain"] ?? null)) ?? null), "bun run thistlecc/test/test.ts");
   assert.ok((withValue(withValue(pkg.scripts ?? null, value => (value["test:guest-toolchain"] ?? null)) ?? null, value => value.includes("src/test/toolchain.ts")) ?? null));
   assert.equal(withValue(fileConfig.os ?? null, value => value.version), "0.3");
-  assert.equal(withValue(fileConfig.kernel ?? null, value => value.version), "2.1.0");
+  assert.equal(withValue(fileConfig.kernel ?? null, value => value.version), CANONICAL_CONFIG.kernel.version);
   assert.equal(loaded.os.prettyName, "初音ミクOS v｡三");
   assert.equal(loaded.kernel.machine, "Thistle64 RV64GC");
-  assert.equal(sourceReleaseName(), "mikuos-0.3.0-thistle-2.1.0-source.tar.gz");
+  assert.equal(sourceReleaseName(), `mikuos-0.3.0-thistle-${CANONICAL_CONFIG.kernel.version}-source.tar.gz`);
   assert.ok(manifest.includes("name: mikuOS"));
   assert.ok(manifest.includes("release: 0.3.0"));
-  assert.ok(manifest.includes("release: 2.1.0"));
+  assert.ok(manifest.includes("release: " + CANONICAL_CONFIG.kernel.version));
   assert.ok(manifest.includes("build_policy: host-only-thistlecc"));
   assert.ok(page.includes("<title>初音ミクOS v｡三</title>"));
   assert.ok(!ignore.split(/\r?\n/).includes("ports/"), "native source tree is broadly ignored");
@@ -2389,7 +2402,7 @@ test("exec replaces the current image without replacing the process", async () =
       s.setResgid(1000, 1000, 1000);
       s.setResuid(1000, 1000, 1000);
 
-      const env = new Map(s.env(null) as Map<string, string>);
+      const env = new Map(s.env() as Map<string, string>);
       env.set("EXEC_MARK", "present");
 
       await s.exec(
@@ -2418,7 +2431,7 @@ test("exec replaces the current image without replacing the process", async () =
 test("process credentials preserve real, effective and saved identities", async () => {
   const r = new Rig();
   r.os.s.write("/tmp/effective-root", "secret\n", false, 0o600);
-  r.os.s.p.cred = {"uid": null, "gid": null, ruid: 1000,
+  r.os.s.p.cred = {"uid": 0, "gid": 0, ruid: 1000,
     euid: 0,
     suid: 0,
     rgid: 1000,
@@ -2782,7 +2795,7 @@ test("boot image and init", async () => {
   assert.ok(release.includes('VERSION="v0.3"'));
   assert.ok(release.includes('VERSION_ID="0.3"'));
   assert.ok(release.includes('KERNEL_NAME=Thistle'));
-  assert.ok(release.includes('KERNEL_VERSION=2.1.0'));
+  assert.ok(release.includes('KERNEL_VERSION=' + CANONICAL_CONFIG.kernel.version));
   assert.ok(release.includes('KERNEL_SOURCE=Thistle'));
   assert.ok(r.os.s.read("/etc/motd").includes("mikuOS v0.3"));
   assert.ok(r.os.s.apps().length >= 50, "core userland is incomplete");
@@ -2807,8 +2820,8 @@ test("boot image and init", async () => {
   assert.ok(compiler.integration.some(component => component.path === "/usr/libexec/thistle/thx-cc"));
   const uname = await r.run("uname -s; uname -r");
   assert.equal(uname.code, 0);
-  assert.equal(uname.out, "Thistle\n2.1.0\n");
-  assert.ok(r.os.s.read("/proc/version").startsWith("Thistle version 2.1.0 "));
+  assert.equal(uname.out, `Thistle\n${CANONICAL_CONFIG.kernel.version}\n`);
+  assert.ok(r.os.s.read("/proc/version").startsWith(`Thistle version ${CANONICAL_CONFIG.kernel.version} `));
   const bootManifest = r.os.s.read("/boot/mikuos.yaml");
   assert.equal(bootManifest, r.os.s.read("/boot/thistle.yaml"));
   assert.ok(bootManifest.includes("os_name: mikuOS"));
@@ -2840,7 +2853,7 @@ test("inode data, links and permissions", () => {
   assert.equal(r.os.s.stat("/tmp/fs/a").nlink, 2);
   r.os.s.chmod("/tmp/fs/a", 0o600);
   let e: Error | null = null;
-  try { r.os.k.fs.read("/tmp/fs/a", "/", {"ruid": null, "euid": null, "suid": null, "rgid": null, "egid": null, "sgid": null, uid: 1000, gid: 1000, groups: [1000] }); } catch (caughtValue) { const x = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  e = x; }
+  try { r.os.k.fs.read("/tmp/fs/a", "/", {uid: 1000, gid: 1000, groups: [1000] }); } catch (caughtValue) { const x = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  e = x; }
   assert.ok(e instanceof KErr && e.code === "EACCES", "guest bypassed mode bits");
   const g = { uid: 1000, gid: 1000, ruid: 1000, euid: 1000, suid: 1000, rgid: 1000, egid: 1000, sgid: 1000, groups: [1000] };
   r.os.k.fs.write("/home/guest/own", "mine", "/", g);
@@ -3044,7 +3057,7 @@ test("GNU head dd od and Bash are actual pre-built THX2 guest executables", asyn
   }
 
   let x = await r.run("printf 'first\nsecond\n' | /bin/head -n 1");
-  assert.equal(x.code, 0);
+  assert.equal(x.code, 0, x.err);
   assert.equal(x.out, "first\n");
   x = await r.run("printf 'ABC' > /tmp/gnu-data; /bin/dd if=/tmp/gnu-data of=/tmp/gnu-copy bs=1 count=3");
   assert.equal(x.code, 0, x.err);

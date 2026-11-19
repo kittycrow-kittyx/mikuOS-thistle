@@ -1,5 +1,5 @@
 import { parseJson } from "../core/json.js";
-import { withValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
 interface HProc { exitCode: number | null; }
 
 export {};

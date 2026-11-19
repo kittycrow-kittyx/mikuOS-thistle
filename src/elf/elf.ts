@@ -1,4 +1,4 @@
-import { ensure } from "../core/err.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
 import { Exe } from "../asm/fmt.js";
 
 const EI_NIDENT = 16;

@@ -1,5 +1,5 @@
-import { requireValue } from "../core/err.js";
-import { withValue } from "../core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
 import { DEFAULT_CONFIG } from "../core/config.js";
 import type { SystemConfig } from "../core/config.js";
 import { WebSession } from "./websession.js";

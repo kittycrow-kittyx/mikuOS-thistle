@@ -30,6 +30,8 @@ jobs:
         run: bash scripts/ci/verify-thistle-pin.sh
       - name: Test hosted userspace
         run: bun src/test/all.ts --hosted-only
+      - name: Boot canonical kernel with custom userland
+        run: bun run test:boot
       - name: Upload Code Guards report
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,6 +64,7 @@ jobs:
           cd "$MIKUOS_TMP"
           bun install --frozen-lockfile --ignore-scripts
           bun run build
+          bun run test:boot
           printf 'echo MIKUOS_HOSTED_BUN\n' | timeout 180 bun mikuos.ts --kernel=thistle --no-root | tee /tmp/mikuos-hosted.log
           grep -F 'Kernel source: Thistle.' /tmp/mikuos-hosted.log
           grep -F MIKUOS_HOSTED_BUN /tmp/mikuos-hosted.log

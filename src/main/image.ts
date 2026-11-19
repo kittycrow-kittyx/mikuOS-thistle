@@ -1,10 +1,10 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { bad, KErr } from "../core/err.js";
-import type { Kern } from "../core/kernel.js";
-import type { Cred } from "../fs/vfs.js";
-import { Dir } from "../fs/vfs.js";
-import { dec, enc } from "../io/stream.js";
+import { bad, KErr } from "../../deps/thistle/src/core/err.js";
+import type { Kern } from "../../deps/thistle/src/core/kernel.js";
+import type { ProcCred as Cred } from "../../deps/thistle/src/fs/vfs.js";
+import { Dir } from "../../deps/thistle/src/fs/vfs.js";
+import { dec, enc } from "../../deps/thistle/src/io/stream.js";
 import { apps, refreshBuiltinRescues } from "../apps/index.js";
 import { demoWasm } from "../wasm/demo.js";
 import { Asm } from "../asm/asm.js";
@@ -231,19 +231,19 @@ export const live = (k: Kern): void => {
   const rnd = (n: number): Uint8Array => { const b = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(b.subarray(i, Math.min(i + 65536, n))); return b; };
 
   k.fs.char("/dev/null", () => new Uint8Array(), b => b.length, "/", r);
-  k.fs.char("/dev/zero", n => new Uint8Array(n), b => b.length, "/", r, 0o666, true);
-  k.fs.char("/dev/random", rnd, b => b.length, "/", r, 0o444, true);
-  k.fs.char("/dev/urandom", rnd, b => b.length, "/", r, 0o444, true);
+  k.fs.char("/dev/zero", n => new Uint8Array(n), b => b.length, "/", r, { mode: 0o666, repeat: true });
+  k.fs.char("/dev/random", rnd, b => b.length, "/", r, { mode: 0o444, repeat: true });
+  k.fs.char("/dev/urandom", rnd, b => b.length, "/", r, { mode: 0o444, repeat: true });
   k.fs.char("/dev/full", () => new Uint8Array(), () => bad("ENOSPC", "/dev/full"), "/", r);
-  k.fs.char("/dev/console", () => new Uint8Array(), b => { k.tty(dec(b), false); return b.length; }, "/", r, 0o620);
+  k.fs.char("/dev/console", () => new Uint8Array(), b => { k.tty(dec(b), false); return b.length; }, "/", r, { mode: 0o620, repeat: false });
   k.fs.symlink("/dev/console", "/dev/tty", "/", r);
 
-  k.fs.char("/proc/version", () => enc(`${k.name} version ${k.release} (${k.executionCore}; thistle64; Thistle 1 compat; WebAssembly guest support)\n`), ro, "/", r, 0o444);
-  k.fs.char("/proc/uptime", () => enc(`${((Date.now() - k.born) / 1000).toFixed(2)} 0.00\n`), ro, "/", r, 0o444);
-  k.fs.char("/proc/loadavg", () => enc(`0.00 0.00 0.00 ${k.ps().filter(p => p.state === "run").length}/${k.ps().length} ${Math.max(...k.ps().map(p => p.pid))}\n`), ro, "/", r, 0o444);
-  k.fs.char("/proc/meminfo", () => enc(`MemTotal:       ${Math.floor(k.lim.mem / 1024)} kB\nMemAvailable:   ${Math.floor(k.lim.mem / 1024)} kB\nVfsTotal:       ${Math.floor(k.fs.cap / 1024)} kB\nVfsUsed:        ${Math.floor(k.fs.used() / 1024)} kB\n`), ro, "/", r, 0o444);
-  k.fs.char("/proc/mounts", () => enc(k.mounts().map(x => `${x.src} ${x.at} ${x.kind} ${x.opt} 0 0`).join("\n") + "\n"), ro, "/", r, 0o444);
-  k.fs.char("/proc/net/dev", () => enc(`Inter-| Receive | Transmit\n host: ${k.net.rx} ${k.net.tx}\nrequests ${k.net.calls} failed ${k.net.fails}\n`), ro, "/", r, 0o444);
+  k.fs.char("/proc/version", () => enc(`${k.name} version ${k.release} (${k.executionCore}; thistle64; Thistle 1 compat; WebAssembly guest support)\n`), ro, "/", r, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/uptime", () => enc(`${((Date.now() - k.born) / 1000).toFixed(2)} 0.00\n`), ro, "/", r, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/loadavg", () => enc(`0.00 0.00 0.00 ${k.ps().filter(p => p.state === "run").length}/${k.ps().length} ${Math.max(...k.ps().map(p => p.pid))}\n`), ro, "/", r, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/meminfo", () => enc(`MemTotal:       ${Math.floor(k.lim.mem / 1024)} kB\nMemAvailable:   ${Math.floor(k.lim.mem / 1024)} kB\nVfsTotal:       ${Math.floor(k.fs.cap / 1024)} kB\nVfsUsed:        ${Math.floor(k.fs.used() / 1024)} kB\n`), ro, "/", r, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/mounts", () => enc(k.mounts().map(x => `${x.src} ${x.at} ${x.kind} ${x.opt} 0 0`).join("\n") + "\n"), ro, "/", r, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/net/dev", () => enc(`Inter-| Receive | Transmit\n host: ${k.net.rx} ${k.net.tx}\nrequests ${k.net.calls} failed ${k.net.fails}\n`), ro, "/", r, { mode: 0o444, repeat: false });
   refreshBuiltinRescues(k);
   k.log("devfs: null zero random console ready");
 };

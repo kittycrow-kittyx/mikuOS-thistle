@@ -28,13 +28,14 @@
     "guards": "bun run prepare:thistle && bun run guards:verified",
     "prepare:thistle": "git submodule update --init --recursive deps/thistle && bash scripts/ci/verify-thistle-pin.sh",
     "build:thistle:verified": "bun run clean && bun run guards:verified && bun run check:scripts && bun --bun tsc --noEmit -p tsconfig.json && bun src/tool/post.ts",
-    "guards:verified": "bash scripts/ci/guards.sh"
+    "guards:verified": "bash scripts/ci/guards.sh",
+    "test:boot": "bun scripts/ci/test-canonical-boot.ts"
   },
   "mikuos": {
     "version": "0.3"
   },
   "thistle": {
-    "version": "2.1.0",
+    "version": "2.2.1",
     "target": "2.2"
   },
   "devDependencies": {

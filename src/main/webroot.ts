@@ -1,7 +1,7 @@
 import { parseJson, jsonObject, type Json } from "../core/json.js";
 import { hostModule } from "./host-module.js";
-import { requireValue } from "../core/err.js";
-import { fileSum } from "../fs/tree.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { fileSum } from "../../deps/thistle/src/fs/tree.js";
 import type {
   WebRootEntry,
   WebRootFileEntry,

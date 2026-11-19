@@ -1,18 +1,20 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { ensure } from "../core/err.js";
-import { Lim } from "../core/cap.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
-import { Kern } from "../core/kernel.js";
-import { Sys } from "../core/sys.js";
-import { Tty } from "../io/tty.js";
+import { HostWasiRunner } from "../../deps/thistle/src/wasm/host-wasi.js";
+import { hostNet } from "../../deps/thistle/src/net/host-fetch.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
+import { Lim } from "../../deps/thistle/src/core/cap.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { Kern } from "../../deps/thistle/src/core/kernel.js";
+import { Sys } from "../../deps/thistle/src/core/sys.js";
+import { Tty } from "../../deps/thistle/src/io/tty.js";
 import { Shell, ShExit } from "../sh/shell.js";
 import { image, live, migrateImage, ROOT_IMAGE_VERSION } from "./image.js";
-import { norm } from "../fs/vfs.js";
-import { Net } from "../net/net.js";
-import { treeFs } from "../fs/tree.js";
-import type { Tree } from "../fs/tree.js";
+import { norm } from "../../deps/thistle/src/fs/vfs.js";
+import { Net } from "../../deps/thistle/src/net/net.js";
+import { treeFs } from "../../deps/thistle/src/fs/tree.js";
+import type { Tree } from "../../deps/thistle/src/fs/tree.js";
 import { DEFAULT_CONFIG } from "../core/config.js";
 import type { AccountConfig, SystemConfig } from "../core/config.js";
 import type { TetoImageProvider } from "../teto/loader.js";
@@ -46,9 +48,9 @@ export class Os {
   activeKernelMode: "thistle" | "teto" = "thistle";
   private save = Promise.resolve();
 
-  constructor(readonly host: Host, net = new Net()) {
+  constructor(readonly host: Host, net = hostNet()) {
     const config = host.config ?? DEFAULT_CONFIG;
-    this.k = new Kern(net, Lim.host(), config, host.setId ?? false, host.teto);
+    this.k = new Kern({ net, lim: Lim.host(), config, setId: host.setId ?? false, wasiGuest: new HostWasiRunner() });
     this.k.ttyFn = (x, e) => { Promise.resolve(host.put(x, e ? "err" : "out")).catch(console.error); };
     image(this.k);
     this.tty = new Tty(
@@ -66,7 +68,7 @@ export class Os {
   async hello(): Promise<void> {
     await this.ready;
     if (this.activeKernelMode === "teto") {
-      const banner = this.k.config.messages.tetoBanner;
+      const banner = this.k.config.messages.nativeBanner;
 
       (banner) && (await this.host.put(
           `${banner}${banner.endsWith("\n") ? "" : "\n"}`,
@@ -208,4 +210,4 @@ export class Os {
   }
 }
 
-export const boot = (host: Pick<Host, "put"> & Partial<Host>, net: Net | null = null): Os => new Os({ halt: null, tree: null, requireTree: null, pkg: null, config: null, account: null, setId: null, kernelMode: null, teto: null, onBootProgress: null, ...host }, net ?? new Net());
+export const boot = (host: Pick<Host, "put"> & Partial<Host>, net: Net | null = null): Os => new Os({ halt: null, tree: null, requireTree: null, pkg: null, config: null, account: null, setId: null, kernelMode: null, teto: null, onBootProgress: null, ...host }, net ?? hostNet());

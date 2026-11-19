@@ -1,12 +1,12 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { ensure } from "../core/err.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
-import { App } from "./base.js";
-import type { Sys } from "../core/sys.js";
-import { bad } from "../core/err.js";
-import { norm } from "../fs/vfs.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { App } from "../../deps/thistle/src/apps/base.js";
+import type { Sys } from "../../deps/thistle/src/core/sys.js";
+import { bad } from "../../deps/thistle/src/core/err.js";
+import { norm } from "../../deps/thistle/src/fs/vfs.js";
 import { Asm } from "../asm/asm.js";
 import { Link } from "../asm/link.js";
 import { Bin, Exe, Obj, codec } from "../asm/fmt.js";

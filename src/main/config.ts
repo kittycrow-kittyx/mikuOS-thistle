@@ -40,14 +40,14 @@ const overlayConfig = (
 
 const account = (x: Json, d: AccountConfig): AccountConfig => {
   const a = obj(x), c = obj((a.cred ?? null));
-  const duid = d.cred.uid ?? d.cred.euid ?? d.cred.ruid ?? 0;
-  const dgid = d.cred.gid ?? d.cred.egid ?? d.cred.rgid ?? 0;
+  const duid = d.cred.uid;
+  const dgid = d.cred.gid;
   return {
     name: str((a.name ?? null), d.name),
     displayName: str((a.displayName ?? null), d.displayName),
     home: str((a.home ?? null), d.home),
     shell: str((a.shell ?? null), d.shell),
-    cred: {"ruid": null, "euid": null, "suid": null, "rgid": null, "egid": null, "sgid": null, uid: nat((c.uid ?? null), duid),
+    cred: {uid: nat((c.uid ?? null), duid),
       gid: nat((c.gid ?? null), dgid),
       groups: nums((c.groups ?? null), d.cred.groups),
     },
@@ -103,9 +103,9 @@ export const mergeConfig = (x: Json): SystemConfig => {
       local: localSession((sessions.local ?? null), d.sessions.local),
     },
     messages: {
-      tetoBanner: str(
-        (messages.tetoBanner ?? null),
-        d.messages.tetoBanner,
+      nativeBanner: str(
+        (messages.nativeBanner ?? null),
+        d.messages.nativeBanner,
       ),
       motd: str((messages.motd ?? null), d.messages.motd),
       issue: str((messages.issue ?? null), d.messages.issue),

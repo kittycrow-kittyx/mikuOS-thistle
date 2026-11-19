@@ -1,12 +1,12 @@
-import { ensure } from "../core/err.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
 import { readWebRoot } from "./webroot-format.js";
 import { treeMeta } from "../fs/tree-meta.js";
 import { jsonObject, jsonText, jsonNat, parseJson } from "../core/json.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
-import { fileSum } from "../fs/tree.js";
-import type { Tree, TreeEnt } from "../fs/tree.js";
-import type { RegSource } from "../fs/vfs.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { fileSum } from "../../deps/thistle/src/fs/tree.js";
+import type { Tree, TreeEnt } from "../../deps/thistle/src/fs/tree.js";
+import type { RegSource } from "../../deps/thistle/src/fs/vfs.js";
 import type {
   WebRootEntry,
   WebRootFileEntry,

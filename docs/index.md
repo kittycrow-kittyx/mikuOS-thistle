@@ -2,11 +2,7 @@
 
 The [architecture](architecture.md) describes the runtime and kernel boundary. See [build instructions](build.md) for preparing the host tools and validating source changes.
 
-- [core/sched](modules/core/sched.md)
-- [vm/mem64](modules/vm/mem64.md)
-- [core/cap](modules/core/cap.md)
 - [core/identity](modules/core/identity.md)
-- [apps/base](modules/apps/base.md)
 - [wasm/demo](modules/wasm/demo.md)
 - [core/release](modules/core/release.md)
 - [tool/teto-build](modules/tool/teto-build.md)
@@ -31,17 +27,9 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 - [boot/standalone](modules/boot/standalone.md)
 - [core/checksum](modules/core/checksum.md)
 - [core/config](modules/core/config.md)
-- [core/err](modules/core/err.md)
 - [core/json](modules/core/json.md)
-- [core/kernel](modules/core/kernel.md)
-- [core/proc](modules/core/proc.md)
-- [core/sys](modules/core/sys.md)
 - [elf/elf](modules/elf/elf.md)
 - [fs/tree-meta](modules/fs/tree-meta.md)
-- [fs/tree](modules/fs/tree.md)
-- [fs/vfs](modules/fs/vfs.md)
-- [io/stream](modules/io/stream.md)
-- [io/tty](modules/io/tty.md)
 - [main/boot](modules/main/boot.md)
 - [main/cli](modules/main/cli.md)
 - [main/config](modules/main/config.md)
@@ -57,7 +45,6 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 - [main/webroot](modules/main/webroot.md)
 - [main/websession](modules/main/websession.md)
 - [main/webtree](modules/main/webtree.md)
-- [net/net](modules/net/net.md)
 - [sh/editor](modules/sh/editor.md)
 - [sh/lex](modules/sh/lex.md)
 - [sh/prefs](modules/sh/prefs.md)
@@ -66,17 +53,13 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 - [test/bun](modules/test/bun.md)
 - [test/teto-worker](modules/test/teto-worker.md)
 - [teto/loader](modules/teto/loader.md)
-- [teto/mem64](modules/teto/mem64.md)
 - [teto/provider](modules/teto/provider.md)
-- [teto/vfs-host](modules/teto/vfs-host.md)
 - [teto/web-smoke](modules/teto/web-smoke.md)
 - [tool/pkg](modules/tool/pkg.md)
 - [tool/post](modules/tool/post.md)
-- [vm/linux-events](modules/vm/linux-events.md)
-- [vm/rv64](modules/vm/rv64.md)
-- [vm/vm](modules/vm/vm.md)
-- [vm/vm64](modules/vm/vm64.md)
-- [wasm/wasi](modules/wasm/wasi.md)
 
-- [Native descriptor I/O](modules/vm/io.md)
 - [Checked guard exceptions](guard-exceptions.md)
+
+## Canonical kernel
+
+The pinned `deps/thistle` owns Kern, Sys, processes, scheduling, VFS, network policy, streams, guest VMs and WASI. mikuOS imports these modules directly and supplies distribution configuration, userland, terminal UI and persistence adapters. See [canonical kernel integration](canonical-kernel.md).

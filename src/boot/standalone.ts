@@ -1,4 +1,4 @@
-import { withValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
 import type { Terminal as XtermTerminal } from "@xterm/xterm";
 import type { FitAddon as XtermFitAddon } from "@xterm/addon-fit";
 import type { BootApi } from "./loader.js";

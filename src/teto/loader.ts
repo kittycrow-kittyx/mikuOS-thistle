@@ -1,4 +1,4 @@
-import { withValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
 export interface TetoExports extends WebAssembly.Exports {
   tetoKernelInit(memory: number, maxHarts: number, threaded: number): number;
   tetoKernelValid(memory: number): number;

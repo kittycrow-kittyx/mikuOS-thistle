@@ -1,5 +1,5 @@
 import { jsonNat, jsonObject, jsonText, parseJson, type Json } from "../core/json.js";
-import type { TreeEnt } from "./tree.js";
+import type { TreeEnt } from "../../deps/thistle/src/fs/tree.js";
 
 /** Serialised inode metadata, without host callbacks or resident file bytes. */
 // The shared shape is an inherited protocol; runtime identities and payload roles remain distinct.

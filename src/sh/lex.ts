@@ -1,7 +1,7 @@
-import { ensure } from "../core/err.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
-import { bad } from "../core/err.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { bad } from "../../deps/thistle/src/core/err.js";
 
 export interface Word { v: string; q: boolean; }
 export interface Tok extends Word { op: boolean; }

@@ -1,14 +1,14 @@
-import { ensure } from "../core/err.js";
-import { withValue } from "../core/err.js";
-import { requireValue } from "../core/err.js";
-import { App } from "./base.js";
-import type { Sys } from "../core/sys.js";
-import { bad } from "../core/err.js";
-import { dec } from "../io/stream.js";
+import { ensure } from "../../deps/thistle/src/core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
+import { requireValue } from "../../deps/thistle/src/core/err.js";
+import { App } from "../../deps/thistle/src/apps/base.js";
+import type { Sys } from "../../deps/thistle/src/core/sys.js";
+import { bad } from "../../deps/thistle/src/core/err.js";
+import { dec } from "../../deps/thistle/src/io/stream.js";
 import { size } from "./util.js";
 import { Shell, ShExit } from "../sh/shell.js";
 import { LineEditor } from "../sh/editor.js";
-import type { Tty } from "../io/tty.js";
+import type { Tty } from "../../deps/thistle/src/io/tty.js";
 import { Exe, codec, isExe, isObj } from "../asm/fmt.js";
 
 // Distinct commands deliberately implement the shared App contract.
@@ -28,7 +28,7 @@ export class FalseApp extends App {
 export class Env extends App {
   constructor() { super("env", "Print an environment or run with modified values.", "env [NAME=value ...] [command [arg ...]]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
-    const e = s.env(null) as Map<string, string>;
+    const e = s.env() as Map<string, string>;
     while ((withValue((a[0] ?? null) ?? null, value => value.includes("=")) ?? null)) { const x = requireValue(a.shift() ?? null, "src/apps/sys.ts:25"); const i = x.indexOf("="); e.set(x.slice(0, i), x.slice(i + 1)); }
     if (a.length) { const p = s.start(requireValue(a[0] ?? null, "src/apps/sys.ts:26"), a.slice(1), {"io": null, "fds": null, "pgid": null, "cwd": null,  env: e }); return s.wait(p.pid); }
     for (const [k, v] of [...e].sort()) await s.out(`${k}=${v}\n`);

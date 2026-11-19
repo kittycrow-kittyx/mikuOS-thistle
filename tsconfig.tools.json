@@ -7,6 +7,7 @@
   },
   "include": [
     "scripts/test-stage0.mts",
-    "assets/fixtures/mmap-shared-gen.mts"
+    "assets/fixtures/mmap-shared-gen.mts",
+    "scripts/ci/test-canonical-boot.ts"
   ]
 }

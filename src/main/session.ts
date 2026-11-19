@@ -26,7 +26,7 @@ export const localSessionPlan = (config: SystemConfig): LocalSessionPlan => {
   if (session.mode !== "login") {
     return {"command": null, kind: "direct", account: config.accounts.cli };
   }
-  if ((config.accounts.cli.cred.euid ?? config.accounts.cli.cred.uid ?? 0) !== 0) {
+  if (config.accounts.cli.cred.uid !== 0) {
     throw new Error("local login mode requires the CLI supervisor to run with UID 0");
   }
   const account = accountByName(config, session.account);

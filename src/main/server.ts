@@ -1,4 +1,4 @@
-import { withValue } from "../core/err.js";
+import { withValue } from "../../deps/thistle/src/core/err.js";
 import { hostConfig } from "./config.js";
 
 interface BServer {

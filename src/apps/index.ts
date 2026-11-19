@@ -1,6 +1,6 @@
-import type { Kern } from "../core/kernel.js";
-import { KErr } from "../core/err.js";
-import type { Cred } from "../fs/vfs.js";
+import type { Kern } from "../../deps/thistle/src/core/kernel.js";
+import { KErr } from "../../deps/thistle/src/core/err.js";
+import type { ProcCred as Cred } from "../../deps/thistle/src/fs/vfs.js";
 import { BaseName, Cat, Chmod, Chown, Cp, DirName, Find, Ln, Ls, Mkdir, Mv, Pwd, Readlink, Rm, Rmdir, StatApp, Touch } from "./fs.js";
 import { Base64, Cut, Echo, Grep, Printf, Sed, Seq, Sort, Strings, Tail, Tee, Tr, Uniq, Wc, Yes } from "./text.js";
 import { Kill, Ps, Sleep, Time } from "./proc.js";
