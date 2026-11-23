@@ -1,5 +1,5 @@
 import type { Kern } from "../../thistle/src/core/kernel.js";
-import { bad } from "../../thistle/src/core/err.js";
+import { KErr } from "../../thistle/src/core/err.js";
 import { Dir } from "../../thistle/src/fs/vfs.js";
 import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
 import { BaseName, Cat, Chmod, Chown, Cp, DirName, Find, Ln, Ls, Mkdir, Mv, Pwd, Readlink, Rm, Rmdir, StatApp, Touch } from "./fs.js";
@@ -33,7 +33,7 @@ const ensureDir = (k: Kern, path: string): void => {
     // The pinned VFS still handles permissions and validates mkdir itself.
     const parentPath = current || "/";
     const parent = k.fs.at(parentPath, "/", root).node;
-    if (!(parent instanceof Dir)) bad("ENOTDIR", parentPath);
+    if (!(parent instanceof Dir)) throw new KErr("ENOTDIR", parentPath);
     current += `/${part}`;
 
     if (!parent.ent.has(part)) {
@@ -45,6 +45,16 @@ const ensureDir = (k: Kern, path: string): void => {
   }
 };
 
+const alreadyPreserved = (k: Kern, path: string): boolean => {
+  const slash = path.lastIndexOf("/");
+  const parentPath = path.slice(0, slash) || "/";
+  const name = path.slice(slash + 1);
+  const parent = k.fs.at(parentPath, "/", root).node;
+  if (!(parent instanceof Dir)) throw new KErr("ENOTDIR", parentPath);
+  // Missing names cannot be stat'ed; existing symlinks still follow VFS rules.
+  return parent.ent.has(name) && k.fs.stat(path, "/", root).kind === "file";
+};
+
 const writeRootFile = (
   k: Kern,
   path: string,
@@ -52,19 +62,9 @@ const writeRootFile = (
   mode: number,
   preserve = false,
 ): void => {
-  if (preserve) {
-    const slash = path.lastIndexOf("/");
-    const parentPath = path.slice(0, slash) || "/";
-    const name = path.slice(slash + 1);
-    const parent = k.fs.at(parentPath, "/", root).node;
-    if (!(parent instanceof Dir)) bad("ENOTDIR", parentPath);
-    // Only inspect a file if its directory entry exists: stat() would
-    // otherwise raise ENOENT. Follow existing symlinks exactly as before.
-    if (parent.ent.has(name) && k.fs.stat(path, "/", root).kind === "file") return;
-  }
+  if (preserve && alreadyPreserved(k, path)) return;
 
-  // Vfs.write creates absent regular files; errors other than absence
-  // propagate unchanged instead of being caught by a fallback mkfile.
+  // Vfs.write creates absent regular files, and genuine failures propagate.
   k.fs.write(path, data, "/", root, false, mode);
   k.fs.chmod(path, mode, "/", root);
   k.fs.chown(path, 0, 0, "/", root);
