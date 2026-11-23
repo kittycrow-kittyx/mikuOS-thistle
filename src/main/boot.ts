@@ -4,22 +4,27 @@ import type { WasmGuestRunner } from "../../thistle/src/wasm/guest-runner.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import { kernelOptions } from "../native/kernel-options.js";
 import { withValue } from "../../thistle/src/core/err.js";
-import { requireValue } from "../../thistle/src/core/err.js";
 import { Kern } from "../../thistle/src/core/kernel.js";
 import { Sys } from "../../thistle/src/core/sys.js";
 import { Tty } from "../../thistle/src/io/tty.js";
 import { Shell } from "../sh/shell.js";
-import { image, live, migrateImage, ROOT_IMAGE_VERSION } from "./image.js";
+import { image, live } from "./image.js";
 import { norm } from "../../thistle/src/fs/vfs.js";
 import { Net } from "../../thistle/src/net/net.js";
-import { treeFs } from "../../thistle/src/fs/tree.js";
 import type { Tree } from "../../thistle/src/fs/tree.js";
 import { DEFAULT_CONFIG } from "../core/config.js";
 import type { AccountConfig, SystemConfig } from "../core/config.js";
 
 export type Ch = "out" | "err" | "sys" | "in";
 
+export interface HostState {
+  restore(os: Os): Promise<void>;
+  flush(os: Os): Promise<void>;
+  install(os: Os): Promise<void>;
+}
+
 export interface Host {
+  state: HostState | null;
   wasiGuest: WasmGuestRunner;
   put(s: string, ch: Ch): void | Promise<void>;
   halt: (() => void) | null;
@@ -42,7 +47,6 @@ export class Os {
   readonly ready: Promise<void>;
   busy = false;
   readonly activeKernelMode = "thistle";
-  private save = Promise.resolve();
 
   constructor(readonly host: Host, net: Net) {
     const config = host.config ?? DEFAULT_CONFIG;
@@ -110,47 +114,13 @@ export class Os {
   }
 
   async flush(): Promise<void> {
-    if (!this.host.tree) return;
-    const ent = this.snapshot();
-    this.save = this.save.then(async () => {
-      const merged = await requireValue(this.host.tree ?? null, "src/main/boot.ts:123").push(ent, ROOT_IMAGE_VERSION);
-      if (merged) {
-        treeFs.load(this.k.fs, merged);
-        live(this.k);
-      }
-    }, null).catch(async <T>(caughtValue: T) => { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      this.k.log(`persist: save failed: ${e instanceof Error ? e.message : String(e)}`);
-      await this.host.put(`Persistence save failed: ${e instanceof Error ? e.message : String(e)}\n`, "err");
-     });
-    await this.save;
+    if (this.host.state !== null) await this.host.state.flush(this);
   }
 
   private async restore(): Promise<void> {
-    if (!this.host.tree) { live(this.k); return; }
-    try {
-      const ent = await this.host.tree.pull();
-      withValue(this.host.onBootProgress ?? null, callable => callable.call(this.host, 4));
-      const before = this.host.tree.imageVersion ?? 0;
-      if (ent) treeFs.load(this.k.fs, ent);
-      this.k.disk = true;
-      const after = ent ? migrateImage(this.k, before) : ROOT_IMAGE_VERSION;
-      live(this.k);
-      if (ent) {
-        (after !== before) && (await this.host.tree.push(this.snapshot(), after));
-        this.k.log(`hostfs: restored / from ${ent.length} entries in ${this.host.tree.label}`);
-      } else {
-        await this.host.tree.push(this.snapshot(), after);
-        this.k.log(`hostfs: initialized / in ${this.host.tree.label}`);
-      }
-    } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      if (this.host.requireTree) throw e;
-      this.k.disk = false;
-      live(this.k);
-      this.k.log(`persist: restore failed: ${e instanceof Error ? e.message : String(e)}`);
-      await this.host.put(`Persistent root was not mounted: ${e instanceof Error ? e.message : String(e)}\n`, "err");
-    }
+    if (this.host.state !== null) await this.host.state.restore(this);
+    else live(this.k);
   }
-
 
   private async configureKernelMode(): Promise<void> {
     withValue(this.host.onBootProgress ?? null, callable => callable.call(this.host, 5));
@@ -167,30 +137,9 @@ export class Os {
     await this.configureKernelMode();
     withValue(this.host.onBootProgress ?? null, callable => callable.call(this.host, 6));
     this.sh.ensureUserState(true);
-    if (this.host.pkg) {
-      try {
-        // An installed package is flushed only after its successful guest-tree update.
-        //@cg-expect-warning
-        if (await this.host.pkg.install(this.k)) {
-          live(this.k);
-          await this.flush();
-        }
-      } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-        const code = withValue((error as Error & { code: string | null } | null) ?? null, value => value.code);
-        const message = error instanceof Error && error.message
-          ? error.message
-          : `${error instanceof Error ? error.name : "Error"}${code ? ` (${String(code)})` : ""}`;
-        this.k.log(`pkg: install failed: ${message}`);
-        await this.host.put(`Optional root package was not installed: ${message}\n`, "err");
-      }
-    }
+    if (this.host.state !== null) await this.host.state.install(this);
   }
 
-  private snapshot(): ReturnType<typeof treeFs.dump> {
-    return treeFs.dump(this.k.fs).filter(entry =>
-      !["/dev", "/proc"].some(path => entry.p === path || entry.p.startsWith(`${path}/`)),
-    );
-  }
 }
 
 export const boot = (host: Host, net: Net): Os => new Os(host, net);
