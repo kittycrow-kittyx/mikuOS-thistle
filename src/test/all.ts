@@ -1364,6 +1364,18 @@ test("redirects and filesystem commands", async () => {
   await r.run("rm -r /tmp/a");
   let miss = false; try { r.os.s.stat("/tmp/a"); } catch { miss = true; }
   assert.ok(miss, "recursive rm left the tree behind");
+
+  const missing = await r.run("rm /tmp/no-such-entry");
+  assert.equal(missing.code, 2, "non-forced rm must propagate its original filesystem failure");
+  assert.match(missing.err, /ENOENT/, "non-forced rm must report the original errno");
+  await r.run("mkdir -p /tmp/forced/sub && echo content > /tmp/forced/sub/file");
+  const forced = await r.run("rm -rf /tmp/no-such-entry /tmp/forced");
+  assert.equal(forced.code, 0, "forced removal must ignore missing entries and remove nested files");
+  assert.equal(forced.err, "", "forced removal must not report ignored failures");
+  let forcedExists = true;
+  try { r.os.s.stat("/tmp/forced"); } catch { forcedExists = false; }
+  assert.equal(forcedExists, false, "forced recursive removal left a nested directory behind");
+
   await r.run("umask 077; touch /tmp/private");
   assert.equal(r.os.s.stat("/tmp/private").mode, 0o600, "umask was not inherited by a child");
 });
