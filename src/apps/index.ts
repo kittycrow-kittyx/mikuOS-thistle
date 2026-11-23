@@ -1,5 +1,6 @@
 import type { Kern } from "../../thistle/src/core/kernel.js";
-import { KErr } from "../../thistle/src/core/err.js";
+import { bad } from "../../thistle/src/core/err.js";
+import { Dir } from "../../thistle/src/fs/vfs.js";
 import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
 import { BaseName, Cat, Chmod, Chown, Cp, DirName, Find, Ln, Ls, Mkdir, Mv, Pwd, Readlink, Rm, Rmdir, StatApp, Touch } from "./fs.js";
 import { Base64, Cut, Echo, Grep, Printf, Sed, Seq, Sort, Strings, Tail, Tee, Tr, Uniq, Wc, Yes } from "./text.js";
@@ -28,15 +29,19 @@ const ensureDir = (k: Kern, path: string): void => {
   let current = "";
 
   for (const part of path.split("/").filter(Boolean)) {
+    // Inspect the actual parent inode before creating a missing child.
+    // The pinned VFS still handles permissions and validates mkdir itself.
+    const parentPath = current || "/";
+    const parent = k.fs.at(parentPath, "/", root).node;
+    if (!(parent instanceof Dir)) bad("ENOTDIR", parentPath);
     current += `/${part}`;
 
-    try {
-      const stat = k.fs.stat(current, "/", root);
-      if (stat.kind !== "dir") throw new Error(`${current} is not a directory`);
-    } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      if (!(error instanceof KErr) || error.code !== "ENOENT") throw error;
+    if (!parent.ent.has(part)) {
       k.fs.mkdir(current, "/", root, 0o755);
+      continue;
     }
+    const stat = k.fs.stat(current, "/", root);
+    if (stat.kind !== "dir") throw new Error(`${current} is not a directory`);
   }
 };
 
@@ -47,15 +52,22 @@ const writeRootFile = (
   mode: number,
   preserve = false,
 ): void => {
-  try {
-    if (preserve && k.fs.stat(path, "/", root).kind === "file") return;
-    k.fs.write(path, data, "/", root, false, mode);
-    k.fs.chmod(path, mode, "/", root);
-    k.fs.chown(path, 0, 0, "/", root);
-  } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    if (!(error instanceof KErr) || error.code !== "ENOENT") throw error;
-    k.fs.mkfile(path, data, "/", root, mode);
+  if (preserve) {
+    const slash = path.lastIndexOf("/");
+    const parentPath = path.slice(0, slash) || "/";
+    const name = path.slice(slash + 1);
+    const parent = k.fs.at(parentPath, "/", root).node;
+    if (!(parent instanceof Dir)) bad("ENOTDIR", parentPath);
+    // Only inspect a file if its directory entry exists: stat() would
+    // otherwise raise ENOENT. Follow existing symlinks exactly as before.
+    if (parent.ent.has(name) && k.fs.stat(path, "/", root).kind === "file") return;
   }
+
+  // Vfs.write creates absent regular files; errors other than absence
+  // propagate unchanged instead of being caught by a fallback mkfile.
+  k.fs.write(path, data, "/", root, false, mode);
+  k.fs.chmod(path, mode, "/", root);
+  k.fs.chown(path, 0, 0, "/", root);
 };
 
 /**
