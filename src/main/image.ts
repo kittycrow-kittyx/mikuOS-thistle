@@ -1,7 +1,8 @@
 import { bad, KErr } from "../../thistle/src/core/err.js";
 import type { Kern } from "../../thistle/src/core/kernel.js";
 import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
-import { Dir } from "../../thistle/src/fs/vfs.js";
+import { Dir, Sym } from "../../thistle/src/fs/vfs.js";
+import type { VNode } from "../../thistle/src/fs/vfs.js";
 import { dec, enc } from "../../thistle/src/io/stream.js";
 import { apps, refreshBuiltinRescues } from "../apps/index.js";
 import { Asm } from "../../thistle/thistle-asm/asm.js";
@@ -19,12 +20,16 @@ const osRelease = (k: Kern): string => {
 };
 
 const replaceStockFile = (k: Kern, path: string, oldText: string, newText: string): void => {
-  let text: string;
-  try { text = k.fs.read(path, "/", r); }
-  catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    if (error instanceof KErr && error.code === "ENOENT") return;
-    throw error;
+  // Inspect only canonical directory entries. Missing stock files are left
+  // untouched, as are user-supplied symlinks and renamed paths.
+  let node: VNode = k.fs.root;
+  for (const part of path.split("/").filter(Boolean)) {
+    if (!(node instanceof Dir)) throw new KErr("ENOTDIR", path);
+    const child = node.ent.get(part) ?? null;
+    if (child === null || child instanceof Sym) return;
+    node = child;
   }
+  const text = k.fs.read(path, "/", r);
   if (text === oldText) k.fs.write(path, newText, "/", r);
 };
 
