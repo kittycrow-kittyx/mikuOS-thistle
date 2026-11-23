@@ -1369,7 +1369,7 @@ test("redirects and filesystem commands", async () => {
   const rm = new Rm();
   await assert.rejects(
     () => rm.run(r.os.s, ["/tmp/no-such-entry"]),
-    (error: unknown) => error instanceof KErr && error.code === "ENOENT",
+    { code: "ENOENT" },
     "non-forced rm must propagate the original filesystem exception",
   );
   r.os.s.mkdir("/tmp/forced");
@@ -1382,7 +1382,7 @@ test("redirects and filesystem commands", async () => {
   );
   assert.throws(
     () => r.os.s.stat("/tmp/forced"),
-    (error: unknown) => error instanceof KErr && error.code === "ENOENT",
+    { code: "ENOENT" },
     "forced recursive removal left a nested directory behind",
   );
 
