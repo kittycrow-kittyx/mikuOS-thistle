@@ -3,13 +3,25 @@ import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
 import { App } from "../../thistle/src/apps/base.js";
 import type { Sys } from "../../thistle/src/core/sys.js";
-import { fmtMode, norm, Reg, Sym } from "../../thistle/src/fs/vfs.js";
+import { Dir, fmtMode, norm, Reg, Sym } from "../../thistle/src/fs/vfs.js";
 import type { VNode } from "../../thistle/src/fs/vfs.js";
 import { cols, globRx, size } from "./util.js";
 import { bad, KErr } from "../../thistle/src/core/err.js";
 
 const base = (p: string): string => norm(p).split("/").filter(Boolean).at(-1) ?? "/";
 const join = (a: string, b: string): string => a === "/" ? `/${b}` : `${a.replace(/\/$/, "")}/${b}`;
+
+// The upstream VFS exposes directory entries, so an existing destination
+// need not be manufactured into an EEXIST exception and then caught.
+const mkdirIfMissing = (s: Sys, path: string, mode: number): void => {
+  const absolute = norm(path, s.cwd);
+  const cut = absolute.lastIndexOf("/");
+  const parentPath = absolute.slice(0, cut) || "/";
+  const name = absolute.slice(cut + 1);
+  const parent = s.node(parentPath);
+  if (!(parent instanceof Dir)) throw new KErr("ENOTDIR", parentPath);
+  if (!parent.ent.has(name)) s.mkdir(absolute, mode);
+};
 
 export class Pwd extends App {
   constructor() { super("pwd", "Print the current working directory."); }
@@ -108,7 +120,7 @@ export class Mkdir extends App {
         let q = "";
         // Stream and traversal modes select the applicable I/O checks and exit paths.
         //@cg-expect-warning
-        for (const v of norm(x, s.cwd).split("/").filter(Boolean)) { q += `/${v}`; try { s.mkdir(q, mode); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (!(e instanceof KErr) || e.code !== "EEXIST") throw e; } }
+        for (const v of norm(x, s.cwd).split("/").filter(Boolean)) { q += `/${v}`; mkdirIfMissing(s, q, mode); }
       }
     }
     return 0;
@@ -173,7 +185,7 @@ export class Cp extends App {
       switch (true) {
 case !!(st.kind === "dir"): {
         if (!rec) bad("EISDIR", a0);
-        try { s.mkdir(b0, st.mode); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (!(e instanceof KErr) || e.code !== "EEXIST") throw e; }
+        mkdirIfMissing(s, b0, st.mode);
         for (const [n] of s.list(a0)) go(join(norm(a0, s.cwd), n), join(norm(b0, s.cwd), n));
 
 break; }
