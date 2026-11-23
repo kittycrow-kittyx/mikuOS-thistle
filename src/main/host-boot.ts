@@ -5,6 +5,8 @@ import { boot as start } from "./boot.js";
 import { createHostState } from "./host-state.js";
 import type { Host as RuntimeHost, Os } from "./boot.js";
 
+// The hosted API intentionally omits its internally created WASI and state adapters.
+//@cg-expect-warning
 export type Host = Omit<RuntimeHost, "wasiGuest" | "state">;
 
 /** Supply host capabilities and persistence callbacks to the canonical boot. */

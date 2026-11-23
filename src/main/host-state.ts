@@ -25,7 +25,7 @@ export function createHostState(host: HostCapabilities): HostState {
         treeFs.load(os.k.fs, merged);
         live(os.k);
       }
-    }, null).catch(async caughtValue => {
+    }, null).catch(async <T>(caughtValue: T) => {
       const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
       os.k.log(`persist: save failed: ${error.message}`);
       await host.put(`Persistence save failed: ${error.message}\n`, "err");
@@ -47,8 +47,8 @@ export function createHostState(host: HostCapabilities): HostState {
       os.k.disk = true;
       const after = entries ? migrateImage(os.k, before) : ROOT_IMAGE_VERSION;
       live(os.k);
+      if (entries && after !== before) await tree.push(snapshot(os.k), after);
       if (entries) {
-        if (after !== before) await tree.push(snapshot(os.k), after);
         os.k.log(`hostfs: restored / from ${entries.length} entries in ${tree.label}`);
       } else {
         await tree.push(snapshot(os.k), after);
@@ -68,8 +68,6 @@ export function createHostState(host: HostCapabilities): HostState {
     const pkg = host.pkg;
     if (pkg === null) return;
     try {
-      // A root-package change is saved only after installation succeeds.
-      //@cg-expect-warning
       if (await pkg.install(os.k)) {
         live(os.k);
         await flush(os);
