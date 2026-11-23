@@ -118,8 +118,6 @@ export class Mkdir extends App {
       if (!p) s.mkdir(x, mode);
       else {
         let q = "";
-        // Stream and traversal modes select the applicable I/O checks and exit paths.
-        //@cg-expect-warning
         for (const v of norm(x, s.cwd).split("/").filter(Boolean)) { q += `/${v}`; mkdirIfMissing(s, q, mode); }
       }
     }
