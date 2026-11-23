@@ -140,12 +140,12 @@ export class Rm extends App {
         remove(p);
         return;
       }
-      // Forced removal is deliberately best effort at each traversal level.
-      // This is the documented -f behaviour, not an unhandled deletion failure.
-      //@cg-expect-warning
       try {
         remove(p);
-      } catch {
+      }
+      // rm -f intentionally ignores errors at each recursion level and continues with siblings.
+      //@cg-expect-warning
+      catch {
         // Keep traversing sibling paths after a failed forced removal.
       }
     };
