@@ -500,7 +500,7 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
       ps.push(p);
       sin = pipe ?? sin;
     }
-    const done = Promise.all(ps.map(p => p.done)).then(a => a.at(-1) ?? 0, null);
+    const done = Promise.all(ps.map(p => p.done)).then(a => a.reduce((_last, value) => value, 0), null);
     if (u.bg) {
       const j: Job = {"code": null, id: this.jid++, pgid: requireValue(pgid ?? null, "src/sh/shell.ts:490"), ps, src: u.src, done };
       this.jobs.set(j.id, j);
@@ -600,7 +600,7 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
             return failed ? 1 : 0;
           }
           if (!names.length) return 0;
-          const [target = "", ...args] = names;
+          const target = names[0] ?? "", args = names.slice(1);
           if (built.has(requireValue(target ?? null, "src/sh/shell.ts:586"))) return this.bi(requireValue(target ?? null, "src/sh/shell.ts:586"), args);
 
           try { this.s.which(requireValue(target ?? null, "src/sh/shell.ts:588")); }
@@ -654,7 +654,13 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
         bad("EINVAL","usage: prefs [get key|set key value|reload]");
       }
       case "jobs": return this.showJobs();
-      case "fg": return this.foreground(a[0] ?? `%${[...this.jobs.keys()].at(-1) ?? 0}`);
+      case "fg": {
+        const requested = a[0] ?? null;
+        if (requested !== null) return this.foreground(requested);
+        let last = 0;
+        for (const id of this.jobs.keys()) last = id;
+        return this.foreground(`%${last}`);
+      }
       case "wait": return this.waitJob((a[0] ?? null));
       case "umask":
         if (!a.length) await this.s.out(this.s.umask.toString(8).padStart(4, "0") + "\n");

@@ -70,10 +70,23 @@ const pad = (n: number): string => String(n).padStart(2, "0");
 
 export class DateApp extends App {
   constructor() { super("date", "Print the current date and time.", "date [-u] [+format]"); }
+  // App.run is the required polymorphic command entry point, including stateless commands.
+  //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
-    const d = new Date(), utc = a.includes("-u"), f = (a.find(x => x.startsWith("+")) ?? null);
+    const d = new Date(), utc = a.includes("-u"), format = a.findIndex(x => x.startsWith("+"));
+    const f = format < 0 ? null : requireValue(a[format] ?? null, "date format");
     if (!f) { await s.out((utc ? d.toUTCString() : d.toString()) + "\n"); return 0; }
-    const g = (k: string): number => utc ? requireValue(({ Y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), H: d.getUTCHours(), M: d.getUTCMinutes(), S: d.getUTCSeconds() } as Record<string, number>)[k] ?? null, "src/apps/sys.ts:73") : requireValue(({ Y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(), H: d.getHours(), M: d.getMinutes(), S: d.getSeconds() } as Record<string, number>)[k] ?? null, "src/apps/sys.ts:73");
+    const g = (k: string): number => {
+      switch (k) {
+        case "Y": return utc ? d.getUTCFullYear() : d.getFullYear();
+        case "m": return (utc ? d.getUTCMonth() : d.getMonth()) + 1;
+        case "d": return utc ? d.getUTCDate() : d.getDate();
+        case "H": return utc ? d.getUTCHours() : d.getHours();
+        case "M": return utc ? d.getUTCMinutes() : d.getMinutes();
+        case "S": return utc ? d.getUTCSeconds() : d.getSeconds();
+        default: return bad("EINVAL", `date field ${k}`);
+      }
+    };
     await s.out(f.slice(1).replace(/%([YmdHMSs%])/g, (_m, k: string) => k === "%" ? "%" : k === "s" ? String(Math.floor(d.getTime() / 1000)) : k === "Y" ? String(g(k)) : pad(g(k))) + "\n"); return 0;
   }
 }
@@ -123,7 +136,7 @@ export class Help extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     // Shell input is consumed in the selected script or interactive-session mode.
     //@cg-expect-warning
-    if ((a[0] ?? null)) { const x = (s.apps().find(v => v.name === (a[0] ?? null)) ?? null); if (!x) return 1; await s.out(`${x.name}: ${x.desc}\nusage: ${x.use}\n`); return 0; }
+    if ((a[0] ?? null)) { const apps = s.apps(), index = apps.findIndex(v => v.name === (a[0] ?? null)); if (index < 0) return 1; const x = requireValue(apps[index] ?? null, "help command"); await s.out(`${x.name}: ${x.desc}\nusage: ${x.use}\n`); return 0; }
     await s.out("mikuOS userland commands:\n\n");
     const q = s.apps();
     for (let i = 0; i < q.length; i += 3) await s.out(q.slice(i, i + 3).map(x => x.name.padEnd(12)).join("") + "\n");

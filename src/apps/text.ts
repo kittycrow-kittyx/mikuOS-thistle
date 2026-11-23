@@ -68,13 +68,18 @@ break; }
 
 export class Wc extends App {
   constructor() { super("wc", "Count lines, words and bytes.", "wc [-lwc] [file ...]"); }
+  // App.run is the required polymorphic command entry point, including stateless commands.
+  //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
     const f = a.filter(x => /^-[lwc]+$/.test(x)).join("");
     a = a.filter(x => !/^-[lwc]+$/.test(x));
     const q = await src(s, a);
     for (const [p, x] of q) {
-      const v = [lines(x).length, (x.match(/\S+/g) ?? []).length, enc(x).length];
-      const z = f ? [f.includes("l") ? (v[0] ?? null) : null, f.includes("w") ? (v[1] ?? null) : null, f.includes("c") ? (v[2] ?? null) : null].filter(n => n !== null) : v;
+      const words = x.match(/\S+/g);
+      const z: number[] = [];
+      if (!f || f.includes("l")) z.push(lines(x).length);
+      if (!f || f.includes("w")) z.push(words === null ? 0 : words.length);
+      if (!f || f.includes("c")) z.push(enc(x).length);
       await s.out(z.map(n => String(n).padStart(7)).join("") + (p === "-" ? "" : ` ${p}`) + "\n");
     }
     return 0;
@@ -125,7 +130,8 @@ export class Uniq extends App {
   constructor() { super("uniq", "Filter adjacent duplicate lines.", "uniq [-cd] [file]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
     const f = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/text.ts:117") : "";
-    const q = lines(withValue(((await src(s, a))[0] ?? null) ?? null, value => value[1]) ?? "");
+    const inputs = await src(s, a), first = inputs[0] ?? null;
+    const q = lines(first === null ? "" : first[1]);
     for (let i = 0; i < q.length;) {
       let j = i + 1; while (j < q.length && (q[j] ?? null) === (q[i] ?? null)) j++;
       if (!f.includes("d") || j - i > 1) await s.out(`${f.includes("c") ? String(j - i).padStart(7) + " " : ""}${(q[i] ?? null)}\n`);

@@ -108,17 +108,17 @@ const unquote = (input: string): string => {
   return value;
 };
 
-const booleanValue = (key: string, value: string): boolean => {
+const booleanValue = (value: string): number => {
   const normal = value.trim().toLowerCase();
-  if (["true", "yes", "on", "1"].includes(normal)) return true;
-  if (["false", "no", "off", "0"].includes(normal)) return false;
-  throw new Error(`${key}: expected true or false`);
+  if (["true", "yes", "on", "1"].includes(normal)) return 1;
+  if (["false", "no", "off", "0"].includes(normal)) return 0;
+  return -1;
 };
 
-const integerValue = (key: string, value: string, minimum: number, maximum: number): number => {
+const integerValue = (value: string, minimum: number, maximum: number): number => {
   const parsed = Number.parseInt(value.trim(), 10);
   if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
-    throw new Error(`${key}: expected ${minimum}..${maximum}`);
+    return NaN;
   }
   return parsed;
 };
@@ -129,7 +129,7 @@ export interface ParsedPrefs {
   unknown: Map<string, string>;
 }
 
-const applyBooleanPreference = (prefs: ShellPrefs, key: string, value: string): boolean => {
+const applyBooleanPreference = (prefs: ShellPrefs, key: string, value: string): number => {
   switch (key) {
     case "autocomplete":
     case "autocompleteCaseSensitive":
@@ -144,10 +144,13 @@ const applyBooleanPreference = (prefs: ShellPrefs, key: string, value: string): 
     case "clearScrollback":
     case "colour":
     case "bell":
-    case "showWelcome":
-      prefs[key] = booleanValue(key, value);
-      return true;
-    default: return false;
+    case "showWelcome": {
+      const parsed = booleanValue(value);
+      if (parsed < 0) return -1;
+      prefs[key] = parsed === 1;
+      return 1;
+    }
+    default: return 0;
   }
 };
 
@@ -173,17 +176,24 @@ const applyTextPreference = (prefs: ShellPrefs, key: string, value: string): boo
   }
 };
 
-const applyPreference = (prefs: ShellPrefs, key: string, value: string, unknown: Map<string, string>): void => {
+const applyPreference = (prefs: ShellPrefs, key: string, value: string, unknown: Map<string, string>): string | null => {
   // Decode before assignment so a rejected setting preserves its previous value.
-  if (applyBooleanPreference(prefs, key, value) || applyTextPreference(prefs, key, value)) return;
+  const boolean = applyBooleanPreference(prefs, key, value);
+  if (boolean < 0) return `${key}: expected true or false`;
+  if (boolean > 0 || applyTextPreference(prefs, key, value)) return null;
   switch (key) {
-    case "historySize":
-      prefs.historySize = integerValue(key, value, 0, 1_000_000);
+    case "historySize": {
+      const parsed = integerValue(value, 0, 1_000_000);
+      if (Number.isNaN(parsed)) return `${key}: expected 0..1000000`;
+      prefs.historySize = parsed;
       break;
-
-    case "completionListLimit":
-      prefs.completionListLimit = integerValue(key, value, 1, 100_000);
+    }
+    case "completionListLimit": {
+      const parsed = integerValue(value, 1, 100_000);
+      if (Number.isNaN(parsed)) return `${key}: expected 1..100000`;
+      prefs.completionListLimit = parsed;
       break;
+    }
 
     case "historyIgnorePatterns":
       prefs.historyIgnorePatterns = unquote(value).split(",").map(item => item.trim()).filter(Boolean);
@@ -192,13 +202,14 @@ const applyPreference = (prefs: ShellPrefs, key: string, value: string, unknown:
     case "defaultScriptLang": {
       const language = unquote(value);
       if (language !== "thsh" && language !== "bash") {
-        throw new Error(`${key}: expected thsh or bash`);
+        return `${key}: expected thsh or bash`;
       }
       prefs.defaultScriptLang = language;
       break;
     }
     default: unknown.set(key, unquote(value));
   }
+  return null;
 };
 
 // Validation precedes mutation so failures leave the current operation in a defined state.
@@ -224,11 +235,8 @@ export const parsePrefs = (source: string, initial: ShellPrefs = defaultPrefs())
     const key = line.slice(0, at).trim();
     const value = line.slice(at + 1).trim();
 
-    try {
-      applyPreference(prefs, key, value, unknown);
-    } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      warnings.push(`line ${index + 1}: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    const warning = applyPreference(prefs, key, value, unknown);
+    if (warning !== null) warnings.push(`line ${index + 1}: ${warning}`);
   }
 
   for (const key of keyPreferenceNames) {

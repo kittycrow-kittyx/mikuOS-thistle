@@ -161,7 +161,9 @@ export class DisApp extends ToolApp {
     for (let at = 0; at + iz <= q.data.length; at += iz) {
       const pc = x instanceof Exe ? q.addr + at : at;
       for (const z of sy.filter(v => (x instanceof Exe ? v.val - q.addr : v.val) === at)) await s.out(`\n${hex(pc)} <${z.name}>:\n`);
-      const b = q.data.slice(at, at + iz), r = (rel.find(v => v.off >= at && v.off < at + iz) ?? null);
+      const b = q.data.slice(at, at + iz);
+      const relocation = rel.findIndex(v => v.off >= at && v.off < at + iz);
+      const r = relocation < 0 ? null : requireValue(rel[relocation] ?? null, "disassembly relocation");
       const ins = x.machine === "thistle64" ? text64(decode64(q.data, at), BigInt(pc)) : text(decode(q.data, at), pc);
       await s.out(` ${hex(pc)}: ${[...b].map(v => v.toString(16).padStart(2, "0")).join(" ")}  ${ins}${r ? ` ; ${r.type} ${r.sym}${this.add(r)}` : ""}\n`);
     }

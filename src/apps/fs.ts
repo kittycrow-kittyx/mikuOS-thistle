@@ -218,7 +218,7 @@ export class Chmod extends App {
 
 export class Chown extends App {
   constructor() { super("chown", "Change file owner and group.", "chown uid[:gid] path ..."); }
-  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chown arguments"); const [u = "", g = null] = requireValue(a.shift() ?? null, "src/apps/fs.ts:193").split(":"); const uid = Number(u), gid = g === null ? uid : Number(g); if (!Number.isInteger(uid) || !Number.isInteger(gid)) bad("EINVAL", "numeric ids required"); for (const p of a) s.chown(p, uid, gid); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chown arguments"); const parts = requireValue(a.shift() ?? null, "chown owner").split(":"); const u = parts[0] ?? "", g = parts[1] ?? null; const uid = Number(u), gid = g === null ? uid : Number(g); if (!Number.isInteger(uid) || !Number.isInteger(gid)) bad("EINVAL", "numeric ids required"); for (const p of a) s.chown(p, uid, gid); return 0; }
 }
 
 export class Find extends App {

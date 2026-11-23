@@ -1,8 +1,19 @@
 import { bad, requireValue } from "../../thistle/src/core/err.js";
 
-export const esc = (s: string): string => s.replace(/\\([\\abefnrtv0])/g, (_m, c: string) => ({
-  "\\": "\\", a: "\x07", b: "\b", e: "\x1b", f: "\f", n: "\n", r: "\r", t: "\t", v: "\v", "0": "\0",
-}[c] ?? c));
+export const esc = (s: string): string => s.replace(/\\([\\abefnrtv0])/g, (_m, c: string) => {
+  switch (c) {
+    case "a": return "\x07";
+    case "b": return "\b";
+    case "e": return "\x1b";
+    case "f": return "\f";
+    case "n": return "\n";
+    case "r": return "\r";
+    case "t": return "\t";
+    case "v": return "\v";
+    case "0": return "\0";
+    default: return c;
+  }
+});
 
 export const narg = (s: string, what = "number"): number => {
   const n = Number(s);

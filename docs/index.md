@@ -27,6 +27,7 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 - [elf/elf](modules/elf/elf.md)
 - [fs/tree-meta](modules/fs/tree-meta.md)
 - [main/boot](modules/main/boot.md)
+- [main/host-boot](modules/main/host-boot.md)
 - [main/cli](modules/main/cli.md)
 - [main/config](modules/main/config.md)
 - [main/dir](modules/main/dir.md)

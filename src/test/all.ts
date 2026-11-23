@@ -3,12 +3,13 @@
 import { BootRenderer } from "../boot/display.js";
 import { createHash } from "node:crypto";
 import { parseJson } from "../core/json.js";
+import { defaultPrefs, parsePrefs } from "../sh/prefs.js";
 import assert from "node:assert/strict";
 import { hostModule } from "../main/host-module.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
 import { runInNewContext } from "node:vm";
-import { boot } from "../main/boot.js";
+import { boot } from "../main/host-boot.js";
 import { ROOT_IMAGE_VERSION } from "../main/image.js";
 import { FnApp } from "../../thistle/src/apps/base.js";
 import type { Ch, Os } from "../main/boot.js";
@@ -107,6 +108,31 @@ class MemTree implements Tree {
 
 const tests: Array<[string, () => void | Promise<void>]> = [];
 const test = (name: string, fn: () => void | Promise<void>): void => { tests.push([name, fn]); };
+test("preference validation reports input errors without mutating existing settings", () => {
+  const initial = defaultPrefs();
+  initial.historySize = 17;
+  initial.completionListLimit = 9;
+  const parsed = parsePrefs("historySize=-1\ncompletionListLimit=0\ncolour=perhaps\ndefaultScriptLang=other\nfutureSetting='retained'", initial);
+  assert.deepEqual(parsed.warnings, [
+    "line 1: historySize: expected 0..1000000",
+    "line 2: completionListLimit: expected 1..100000",
+    "line 3: colour: expected true or false",
+    "line 4: defaultScriptLang: expected thsh or bash",
+  ]);
+  assert.equal(parsed.prefs.historySize, 17);
+  assert.equal(parsed.prefs.completionListLimit, 9);
+  assert.equal(parsed.prefs.colour, initial.colour);
+  assert.equal(parsed.prefs.defaultScriptLang, initial.defaultScriptLang);
+  assert.equal(parsed.unknown.get("futureSetting") ?? null, "retained");
+  const valid = parsePrefs("historySize=0\ncompletionListLimit=100000\ncolour=off\ndefaultScriptLang=bash", initial);
+  assert.deepEqual(valid.warnings, []);
+  assert.equal(valid.prefs.historySize, 0);
+  assert.equal(valid.prefs.completionListLimit, 100000);
+  assert.equal(valid.prefs.colour, false);
+  assert.equal(valid.prefs.defaultScriptLang, "bash");
+  assert.equal(initial.historySize, 17);
+  assert.equal(initial.completionListLimit, 9);
+});
 const show = <T>(value: T): string => JSON.stringify(value, <V>(_key: string, item: V) => typeof item === "bigint" ? `${item}n` : item) ?? String(value);
 
 test("TypeScript boot display preserves original terminal output", async () => {

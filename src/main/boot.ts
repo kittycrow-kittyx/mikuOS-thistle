@@ -1,7 +1,6 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
-import { HostWasiRunner } from "../../thistle/src/wasm/host-wasi.js";
-import { hostNet } from "../../thistle/src/net/host-fetch.js";
+import type { WasmGuestRunner } from "../../thistle/src/wasm/guest-runner.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import { Lim } from "../../thistle/src/core/cap.js";
 import { withValue } from "../../thistle/src/core/err.js";
@@ -21,6 +20,7 @@ import type { AccountConfig, SystemConfig } from "../core/config.js";
 export type Ch = "out" | "err" | "sys" | "in";
 
 export interface Host {
+  wasiGuest: WasmGuestRunner;
   put(s: string, ch: Ch): void | Promise<void>;
   halt: (() => void) | null;
   tree: Tree | null;
@@ -44,14 +44,14 @@ export class Os {
   readonly activeKernelMode = "thistle";
   private save = Promise.resolve();
 
-  constructor(readonly host: Host, net = hostNet()) {
+  constructor(readonly host: Host, net: Net) {
     const config = host.config ?? DEFAULT_CONFIG;
-    this.k = new Kern({ net, lim: Lim.host(), config, setId: host.setId ?? false, wasiGuest: new HostWasiRunner() });
+    this.k = new Kern({ net, lim: Lim.host(), config, setId: host.setId ?? false, wasiGuest: host.wasiGuest });
     this.k.ttyFn = (x, e) => { Promise.resolve(host.put(x, e ? "err" : "out")).catch(console.error); };
     image(this.k);
     this.tty = new Tty(
       (x, e) => host.put(x, e ? "err" : "out"),
-      n => n === 2 ? withValue(this.sh ?? null, value => value.interrupt()) ?? false : false,
+      n => n === 2 ? this.sh.interrupt() : false,
     );
     this.p = this.k.session({ sin: this.tty.input, sout: this.tty.output, serr: this.tty.error }, host.account ?? config.accounts.cli);
     this.s = new Sys(this.k, this.p);
@@ -189,4 +189,4 @@ export class Os {
   }
 }
 
-export const boot = (host: Pick<Host, "put"> & Partial<Host>, net: Net | null = null): Os => new Os({ halt: null, tree: null, requireTree: null, pkg: null, config: null, account: null, setId: null, onBootProgress: null, ...host }, net ?? hostNet());
+export const boot = (host: Host, net: Net): Os => new Os(host, net);

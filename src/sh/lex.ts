@@ -52,26 +52,11 @@ const arithmeticOperators = [
   "!", "~", "(", ")",
 ];
 
-const arithmeticPrecedence: Readonly<Record<string, number>> = {
-  "||": 1,
-  "&&": 2,
-  "|": 3,
-  "^": 4,
-  "&": 5,
-  "==": 6,
-  "!=": 6,
-  "<": 7,
-  "<=": 7,
-  ">": 7,
-  ">=": 7,
-  "<<": 8,
-  ">>": 8,
-  "+": 9,
-  "-": 9,
-  "*": 10,
-  "/": 10,
-  "%": 10,
-};
+const arithmeticPrecedence = new Map<string, number>([
+  ["||", 1], ["&&", 2], ["|", 3], ["^", 4], ["&", 5],
+  ["==", 6], ["!=", 6], ["<", 7], ["<=", 7], [">", 7], [">=", 7],
+  ["<<", 8], [">>", 8], ["+", 9], ["-", 9], ["*", 10], ["/", 10], ["%", 10],
+]);
 
 const arithmeticNumber = (
   name: string,
@@ -104,8 +89,9 @@ const arithmeticAtom = (src: string, start: number): [ArithmeticToken, number] =
     const end = arithmeticWordEnd(src, start + 1, /[A-Za-z0-9_]/);
     return [{ kind: "name", value: src.slice(start, end) }, end];
   }
-  const operator = arithmeticOperators.find(value => src.startsWith(value, start)) ?? null;
-  if (!operator) throw new Error(`invalid arithmetic token near ${JSON.stringify(src.slice(start))}`);
+  const index = arithmeticOperators.findIndex(value => src.startsWith(value, start));
+  if (index < 0) throw new Error(`invalid arithmetic token near ${JSON.stringify(src.slice(start))}`);
+  const operator = requireValue(arithmeticOperators[index] ?? null, "arithmetic operator");
   return [{ kind: "operator", value: operator }, start + operator.length];
 };
 
@@ -265,9 +251,9 @@ const evaluateArithmetic = (
         break;
       }
 
-      const precedence = (arithmeticPrecedence[token.value] ?? null);
-
-      if (precedence === null || precedence < minimum) {
+      if (!arithmeticPrecedence.has(token.value)) break;
+      const precedence = requireValue(arithmeticPrecedence.get(token.value) ?? null, "arithmetic precedence");
+      if (precedence < minimum) {
         break;
       }
 
@@ -527,7 +513,8 @@ export const lex = (src: string, env: Map<string, string>, pid: number, last: nu
     const c = requireValue(src[i] ?? null, "src/sh/lex.ts:563");
     if (/\s/.test(c)) { push(); i++; continue; }
     if (c === "#" && !hit) break;
-    const op = (ops.find(x => src.startsWith(x, i)) ?? null);
+    const index = ops.findIndex(x => src.startsWith(x, i));
+    const op = index < 0 ? null : requireValue(ops[index] ?? null, "shell operator");
     if (op) { push(); out.push({ v: op, q: false, op: true }); i += op.length; continue; }
     if (c === "\\") {
       ensure(!(++i >= src.length), () => bad("EINVAL", "trailing escape"));
