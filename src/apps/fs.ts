@@ -84,7 +84,10 @@ export class Touch extends App {
   constructor() { super("touch", "Create files or update their modification time.", "touch file ..."); }
   override async run(s: Sys, a: string[]): Promise<number> {
     if (!a.length) bad("EINVAL", "touch: missing file");
-    for (const p of a) { try { s.writeb(p, s.readb(p)); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (e instanceof KErr && e.code === "ENOENT") s.write(p, ""); else throw e; } }
+    // A zero-byte append creates missing files and updates existing inode times
+    // without needing a read, a replacement write, or an exception fallback.
+    const empty = new Uint8Array(0);
+    for (const path of a) s.writeb(path, empty, true);
     return 0;
   }
 }
