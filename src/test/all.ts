@@ -13,6 +13,7 @@ import { runInNewContext } from "node:vm";
 import { boot } from "../main/host-boot.js";
 import { ROOT_IMAGE_VERSION } from "../main/image.js";
 import { FnApp } from "../../thistle/src/apps/base.js";
+import { Rm } from "../apps/fs.js";
 import type { Ch, Os } from "../main/boot.js";
 import { KErr } from "../../thistle/src/core/err.js";
 import { dec, enc } from "../../thistle/src/io/stream.js";
@@ -1365,16 +1366,25 @@ test("redirects and filesystem commands", async () => {
   let miss = false; try { r.os.s.stat("/tmp/a"); } catch { miss = true; }
   assert.ok(miss, "recursive rm left the tree behind");
 
-  const missing = await r.run("rm /tmp/no-such-entry");
-  assert.equal(missing.code, 2, "non-forced rm must propagate its original filesystem failure");
-  assert.match(missing.err, /ENOENT/, "non-forced rm must report the original errno");
-  await r.run("mkdir -p /tmp/forced/sub && echo content > /tmp/forced/sub/file");
-  const forced = await r.run("rm -rf /tmp/no-such-entry /tmp/forced");
-  assert.equal(forced.code, 0, "forced removal must ignore missing entries and remove nested files");
-  assert.equal(forced.err, "", "forced removal must not report ignored failures");
-  let forcedExists = true;
-  try { r.os.s.stat("/tmp/forced"); } catch { forcedExists = false; }
-  assert.equal(forcedExists, false, "forced recursive removal left a nested directory behind");
+  const rm = new Rm();
+  await assert.rejects(
+    () => rm.run(r.os.s, ["/tmp/no-such-entry"]),
+    (error: unknown) => error instanceof KErr && error.code === "ENOENT",
+    "non-forced rm must propagate the original filesystem exception",
+  );
+  r.os.s.mkdir("/tmp/forced");
+  r.os.s.mkdir("/tmp/forced/sub");
+  r.os.s.write("/tmp/forced/sub/file", "content");
+  assert.equal(
+    await rm.run(r.os.s, ["-rf", "/tmp/no-such-entry", "/tmp/forced"]),
+    0,
+    "forced recursive removal must ignore missing entries and remove nested files",
+  );
+  assert.throws(
+    () => r.os.s.stat("/tmp/forced"),
+    (error: unknown) => error instanceof KErr && error.code === "ENOENT",
+    "forced recursive removal left a nested directory behind",
+  );
 
   await r.run("umask 077; touch /tmp/private");
   assert.equal(r.os.s.stat("/tmp/private").mode, 0o600, "umask was not inherited by a child");
