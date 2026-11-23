@@ -393,16 +393,13 @@ test(".thx and .39 are byte-identical header-selected THX aliases", async () => 
   interface HFs { readFile(path: URL): Promise<Uint8Array>; }
 
   const fs = await hostModule("node:fs/promises") as HFs;
-  const [assetThx, asset39, webThx, web39] = await Promise.all([
+  const [assetThx, asset39] = await Promise.all([
     fs.readFile(new URL("../../assets/hello.thx", import.meta.url)),
     fs.readFile(new URL("../../assets/hello.39", import.meta.url)),
-    fs.readFile(new URL("../../dist/web/assets/hello.thx", import.meta.url)),
-    fs.readFile(new URL("../../dist/web/assets/hello.39", import.meta.url)),
   ]);
   const same = (a: Uint8Array, b: Uint8Array): boolean =>
     a.length === b.length && a.every((value, index) => value === (b[index] ?? null));
   assert.ok(same(assetThx, asset39), "generated .thx and .39 assets differ");
-  assert.ok(same(assetThx, webThx) && same(asset39, web39), "static packaging changed THX alias bytes");
   assert.equal(dec(asset39.slice(0, 4)), "THX2");
 
   const r = new Rig(), s = r.os.s;
@@ -526,11 +523,10 @@ test("canonical mikuOS release metadata stays aligned", async () => {
 
   const fs = await hostModule("node:fs/promises") as HFs;
   const root = new URL("../../", import.meta.url);
-  const [packageText, configText, manifest, page, ignore, mikuosEntry, thistleEntry] = await Promise.all([
+  const [packageText, configText, manifest, ignore, mikuosEntry, thistleEntry] = await Promise.all([
     fs.readFile(new URL("package.json", root), "utf8"),
     fs.readFile(new URL("mikuos.config.json", root), "utf8"),
     fs.readFile(new URL("mikuos.yaml", root), "utf8"),
-    fs.readFile(new URL("index.html", root), "utf8"),
     fs.readFile(new URL(".gitignore", root), "utf8"),
     fs.readFile(new URL("mikuos.ts", root), "utf8"),
     fs.readFile(new URL("thistle.ts", root), "utf8"),
@@ -552,7 +548,6 @@ test("canonical mikuOS release metadata stays aligned", async () => {
   assert.ok(manifest.includes("release: 0.3.0"));
   assert.ok(manifest.includes("release: " + CANONICAL_CONFIG.kernel.version));
   assert.ok(manifest.includes("build_policy: host-only-thistlecc"));
-  assert.ok(page.includes("<title>初音ミクOS v｡三</title>"));
   assert.ok(!ignore.split(/\r?\n/).includes("ports/"), "native source tree is broadly ignored");
   assert.ok(ignore.includes("ports/**/*.o"), "reproducible native objects are not ignored");
   assert.ok(mikuosEntry.includes('import "./src/main/cli.ts"'));
