@@ -8,7 +8,7 @@ import { requireValue } from "../../thistle/src/core/err.js";
 import { Kern } from "../../thistle/src/core/kernel.js";
 import { Sys } from "../../thistle/src/core/sys.js";
 import { Tty } from "../../thistle/src/io/tty.js";
-import { Shell, ShExit } from "../sh/shell.js";
+import { Shell } from "../sh/shell.js";
 import { image, live, migrateImage, ROOT_IMAGE_VERSION } from "./image.js";
 import { norm } from "../../thistle/src/fs/vfs.js";
 import { Net } from "../../thistle/src/net/net.js";
@@ -81,9 +81,13 @@ export class Os {
     await this.ready;
     this.busy = true;
     try {
-      return await this.sh.run(line, recordHistory, heredocBodies);
+      const code = await this.sh.run(line, recordHistory, heredocBodies);
+      if (this.sh.exitRequested) {
+        this.sh.exitRequested = false;
+        withValue(this.host.halt ?? null, callable => callable.call(this.host));
+      }
+      return code;
     }
-    catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (e instanceof ShExit) { withValue(this.host.halt ?? null, callable => callable.call(this.host)); return e.code; } throw e; }
     finally {
       this.busy = false;
       this.tty.reset();

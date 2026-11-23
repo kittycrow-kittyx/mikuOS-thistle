@@ -1400,6 +1400,43 @@ test("background jobs and signals", async () => {
   assert.equal(r.os.sh.jobs.size, 0);
 });
 
+test("shell exits preserve status, cleanup and subshell isolation without throwing", async () => {
+  const r = new Rig();
+  let halted = 0;
+  r.os.host.halt = () => { halted++; };
+  let x = await r.run("echo before; exit 7; echo unreachable");
+  assert.equal(x.code, 7);
+  assert.equal(x.out, "before\n");
+  assert.equal(x.err, "");
+  assert.equal(halted, 1);
+  assert.equal(r.os.busy, false);
+  assert.equal(r.os.sh.exitRequested, false);
+
+  x = await r.run("cat <<EOF\n$(echo inside; exit 5; echo unreachable)\nEOF\necho outside");
+  assert.equal(x.code, 0);
+  assert.equal(x.out, "inside\noutside\n");
+  assert.equal(x.err, "");
+  assert.equal(halted, 1);
+
+  x = await r.run("thsh -c 'echo child; exit 3; echo unreachable'; echo parent");
+  assert.equal(x.code, 0);
+  assert.equal(x.out, "child\nparent\n");
+  assert.equal(x.err, "");
+  assert.equal(halted, 1);
+
+  const path = r.os.s.env("PATH");
+  x = await r.run("command -p exit 4; echo unreachable");
+  assert.equal(x.code, 4);
+  assert.equal(x.out, "");
+  assert.equal(r.os.s.env("PATH"), path);
+  assert.equal(halted, 2);
+
+  x = await r.run("false; logout; echo unreachable");
+  assert.equal(x.code, 1);
+  assert.equal(x.out, "");
+  assert.equal(halted, 3);
+});
+
 test("scripts retain shell state", async () => {
   const r = new Rig();
   r.os.s.write("/tmp/t.thsh", "#!/bin/thsh\nexport X=inside\necho $X\ncd /tmp\npwd\n", false, 0o755);

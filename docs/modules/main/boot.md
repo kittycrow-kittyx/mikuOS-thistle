@@ -5,3 +5,5 @@ Boot combines configuration, image construction, persistence and kernel-mode sel
 `boot(host, net)` and `Os(host, net)` require an explicit network and a concrete `Host`. The host supplies its `wasiGuest` capability. This module imports capability contracts rather than browser or Node adapter implementations. Hosted callers use [main/host-boot](host-boot.md) to retain the normal startup defaults.
 
 Public names: `Ch`, `Host`, `Os`, `boot`.
+
+`Os.run` consumes the shell’s explicit exit request and calls the host halt callback. Its existing finalisation still clears busy state, resets terminal input and flushes persistence.

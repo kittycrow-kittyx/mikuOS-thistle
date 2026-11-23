@@ -6,7 +6,7 @@ import type { Sys } from "../../thistle/src/core/sys.js";
 import { bad } from "../../thistle/src/core/err.js";
 import { dec } from "../../thistle/src/io/stream.js";
 import { size } from "./util.js";
-import { Shell, ShExit } from "../sh/shell.js";
+import { Shell } from "../sh/shell.js";
 import { LineEditor } from "../sh/editor.js";
 import type { Tty } from "../../thistle/src/io/tty.js";
 import { Exe, codec, isExe, isObj } from "../../thistle/thistle-asm/fmt.js";
@@ -171,99 +171,99 @@ export class Thsh extends App {
   //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
     const sh = new Shell(s);
+    if ((a[0] ?? null) === "-c") return sh.run(a.slice(1).join(" "), false);
+    if ((a[0] ?? null)) {
+      const p = requireValue(a.shift() ?? null, "src/apps/sys.ts:154");
+      s.setenv("0", p); s.setenv("#", String(a.length)); s.setenv("*", a.join(" ")); a.forEach((x, i) => s.setenv(String(i + 1), x));
+      const q = s.read(p).split("\n");
+      ((withValue((q[0] ?? null) ?? null, value => value.startsWith("#!")) ?? null)) && (q.shift() ?? null);
+      return sh.run(q.join("\n"), false);
+    }
+    sh.ensureUserState(true);
+
+    const tty = withValue((
+      withValue((s.p.fds.get(0) ?? null) ?? null, value => value.input) as { tty: Tty | null } | null
+    ) ?? null, value => value.tty);
+
+    /*
+     * A login shell launched by su(1) runs inside the guest process, so it
+     * cannot use the host's outer editor. Reuse the normal LineEditor here
+     * to retain the target account's history, suggestions, completion and
+     * editing key bindings. Redirected stdin keeps the canonical fallback.
+     */
+    if (!tty) {
+      for (;;) {
+        await s.out(sh.prompt());
+        const input = await s.chunkb();
+        // Shell input is consumed in the selected script or interactive-session mode.
+        //@cg-expect-warning
+        if (!input.length) return sh.last;
+        await sh.run(dec(input).replace(/\r?\n$/, ""));
+        if (sh.exitRequested) return sh.last;
+      }
+    }
+
+    const inherited = tty.termios();
+    const commands: Array<{
+      source: string;
+      bodies: readonly string[];
+    }> = [];
+    let logout = false;
+
+    const editor = new LineEditor({
+      shell: sh,
+      prompt: () => sh.prompt(),
+      busy: () => false,
+      write: text => tty.write(text),
+      execute: (source, bodies) => {
+        commands.push({
+          source,
+          bodies: [...bodies],
+        });
+      },
+      passthrough: data => tty.feed(data),
+      halt: () => {
+        logout = true;
+      },
+      complete: line => sh.complete(line),
+    });
+
+    tty.lineEditorMode(inherited);
+
     try {
-      if ((a[0] ?? null) === "-c") return sh.run(a.slice(1).join(" "), false);
-      if ((a[0] ?? null)) {
-        const p = requireValue(a.shift() ?? null, "src/apps/sys.ts:154");
-        s.setenv("0", p); s.setenv("#", String(a.length)); s.setenv("*", a.join(" ")); a.forEach((x, i) => s.setenv(String(i + 1), x));
-        const q = s.read(p).split("\n");
-        ((withValue((q[0] ?? null) ?? null, value => value.startsWith("#!")) ?? null)) && (q.shift() ?? null);
-        return sh.run(q.join("\n"), false);
-      }
-      sh.ensureUserState(true);
+      editor.render();
 
-      const tty = withValue((
-        withValue((s.p.fds.get(0) ?? null) ?? null, value => value.input) as { tty: Tty | null } | null
-      ) ?? null, value => value.tty);
+      while (!logout) {
+        const input = await s.chunk();
+        if (!input) return sh.last;
 
-      /*
-       * A login shell launched by su(1) runs inside the guest process, so it
-       * cannot use the host's outer editor. Reuse the normal LineEditor here
-       * to retain the target account's history, suggestions, completion and
-       * editing key bindings. Redirected stdin keeps the canonical fallback.
-       */
-      if (!tty) {
-        for (;;) {
-          await s.out(sh.prompt());
-          const input = await s.chunkb();
-          // Shell input is consumed in the selected script or interactive-session mode.
-          //@cg-expect-warning
-          if (!input.length) return sh.last;
-          await sh.run(dec(input).replace(/\r?\n$/, ""));
+        editor.key(input);
+
+        while (commands.length) {
+          const command = requireValue(commands.shift() ?? null, "src/apps/sys.ts:218");
+
+          /*
+           * Child programmes receive the ordinary inherited terminal
+           * rather than the shell editor's raw terminal mode.
+           */
+          tty.setTermios(inherited, false);
+
+          await sh.run(
+            command.source,
+            true,
+            command.bodies,
+          );
+          if (sh.exitRequested) return sh.last;
+
+          tty.lineEditorMode(inherited);
+          editor.afterCommand(commands.length === 0);
         }
       }
 
-      const inherited = tty.termios();
-      const commands: Array<{
-        source: string;
-        bodies: readonly string[];
-      }> = [];
-      let logout = false;
-
-      const editor = new LineEditor({
-        shell: sh,
-        prompt: () => sh.prompt(),
-        busy: () => false,
-        write: text => tty.write(text),
-        execute: (source, bodies) => {
-          commands.push({
-            source,
-            bodies: [...bodies],
-          });
-        },
-        passthrough: data => tty.feed(data),
-        halt: () => {
-          logout = true;
-        },
-        complete: line => sh.complete(line),
-      });
-
-      tty.lineEditorMode(inherited);
-
-      try {
-        editor.render();
-
-        while (!logout) {
-          const input = await s.chunk();
-          if (!input) return sh.last;
-
-          editor.key(input);
-
-          while (commands.length) {
-            const command = requireValue(commands.shift() ?? null, "src/apps/sys.ts:218");
-
-            /*
-             * Child programmes receive the ordinary inherited terminal
-             * rather than the shell editor's raw terminal mode.
-             */
-            tty.setTermios(inherited, false);
-
-            await sh.run(
-              command.source,
-              true,
-              command.bodies,
-            );
-
-            tty.lineEditorMode(inherited);
-            editor.afterCommand(commands.length === 0);
-          }
-        }
-
-        return sh.last;
-      } finally {
-        tty.setTermios(inherited, false);
-      }
-    } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (e instanceof ShExit) return e.code; throw e; }
+      return sh.last;
+    } finally {
+      tty.setTermios(inherited, false);
+    }
   }
 }
 

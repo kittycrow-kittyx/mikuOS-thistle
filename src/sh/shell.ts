@@ -29,11 +29,6 @@ export interface HereDocRequest {
   expand: boolean;
 }
 
-// The shared shape is an inherited protocol; runtime identities and payload roles remain distinct.
-export class ShExit extends Error {
-  constructor(readonly code: number) { super(`shell exit ${code}`); }
-}
-
 class FsOut extends Stream implements Out {
 
 
@@ -90,6 +85,7 @@ export class Shell {
   readonly jobs = new Map<number, Job>();
   last = 0;
   lastBg = 0;
+  exitRequested = false;
   private jid = 1;
   private fg = 0;
   private historyWarning = false;
@@ -279,7 +275,7 @@ export class Shell {
     save = true,
     heredocBodies: readonly string[] = [],
   ): Promise<number> {
-    if (!src.trim()) return this.last;
+    if (this.exitRequested || !src.trim()) return this.last;
     this.ensureUserState();
     if (save) {
       try {
@@ -358,6 +354,8 @@ export class Shell {
         if (r.gate === "||" && code === 0) continue;
 
         code = await this.unit(u);
+        this.last = code;
+        if (this.exitRequested) return code;
       }
 
       if (heredocAt !== bodies.length) {
@@ -366,7 +364,6 @@ export class Shell {
 
       this.last = code;
     } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      if (e instanceof ShExit) throw e;
       await this.s.err(`thsh: ${msg(e)}\n`);
       this.last = 2;
     }
@@ -380,6 +377,7 @@ export class Shell {
 
     const previousLast = this.last;
     const previousLastBg = this.lastBg;
+    const previousExit = this.exitRequested;
     const previousCwd = this.s.cwd;
 
     const environment = this.s.env() as Map<string, string>;
@@ -387,23 +385,21 @@ export class Shell {
     const previousAliases = new Map(this.aliases);
 
     try {
-      try {
-        await this.withIo(
-          {
-            sin: base.sin,
-            sout: output,
-            serr: base.serr,
-          },
-          () => this.run(src, false),
-        );
-      } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-        if (!(error instanceof ShExit)) throw error;
-      }
+      this.exitRequested = false;
+      await this.withIo(
+        {
+          sin: base.sin,
+          sout: output,
+          serr: base.serr,
+        },
+        () => this.run(src, false),
+      );
 
       return output.text().replace(/\n+$/, "");
     } finally {
       this.last = previousLast;
       this.lastBg = previousLastBg;
+      this.exitRequested = previousExit;
 
       environment.clear();
 
@@ -667,7 +663,11 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
         else { const n = Number.parseInt(requireValue(a[0] ?? null, "src/sh/shell.ts:639"), 8); ensure(Number.isFinite(n), () => bad("EINVAL", (requireValue(a[0] ?? null, "src/sh/shell.ts:652") ?? null))); this.s.umask = n & 0o777; }
         return 0;
       case "reboot": this.s.reboot(); return 0;
-      case "exit": case "logout": throw new ShExit(Number(a[0] ?? this.last) || 0);
+      case "exit": case "logout": {
+        this.last = Number(a[0] ?? this.last) || 0;
+        this.exitRequested = true;
+        return this.last;
+      }
       default: return 127;
     }
   }
