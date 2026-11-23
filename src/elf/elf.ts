@@ -1,4 +1,3 @@
-import { ensure } from "../../thistle/src/core/err.js";
 import { Exe } from "../../thistle/thistle-asm/fmt.js";
 
 const EI_NIDENT = 16;
@@ -18,12 +17,13 @@ export class ElfErr extends Error {
   constructor(message: string) { super(message); this.name = "ElfErr"; }
 }
 
-const fail = (s: string): never => { throw new ElfErr(s); };
+export interface ElfResult {
+  exe: Exe | null;
+  message: string | null;
+}
 
-const nat = (n: bigint, k: string): number => {
-  if (n < 0n || n > BigInt(Number.MAX_SAFE_INTEGER)) fail(`${k} is outside Thistle's address range`);
-  return Number(n);
-};
+const failure = (message: string): ElfResult => ({ exe: null, message });
+const nat = (n: bigint): number => n < 0n || n > BigInt(Number.MAX_SAFE_INTEGER) ? -1 : Number(n);
 
 const pow2 = (n: number): boolean => {
   if (n <= 0 || !Number.isSafeInteger(n)) return false;
@@ -35,20 +35,28 @@ export const isElf = (b: Uint8Array): boolean => b.length >= EI_NIDENT && (b[0] 
 
 /** Import a linked RV64 executable. Relocating an ELF at runtime is a different job, so dynamic files are refused here. */
 export class Elf {
-  // This method is retained as the established snapshot, executable or platform callback boundary.
-  //@cg-expect-warning
   run(b: Uint8Array, name = "a.out"): Exe {
-    if (!isElf(b)) fail(`${name}: not an ELF file`);
-    if (b.length < 64) fail(`${name}: truncated ELF header`);
-    if ((b[4] ?? null) !== 2 || (b[5] ?? null) !== 1 || (b[6] ?? null) !== 1) fail(`${name}: expected ELF64 little-endian version 1`);
-    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
-    if (v.getUint16(16, true) !== ET_EXEC) fail(`${name}: only linked ET_EXEC files can become THX`);
-    if (v.getUint16(18, true) !== EM_RISCV) fail(`${name}: expected a RISC-V executable`);
-    if (v.getUint32(20, true) !== 1) fail(`${name}: unsupported ELF version`);
+    const result = this.parse(b, name), exe = result.exe;
+    if (exe !== null) return exe;
+    throw new ElfErr(result.message ?? "invalid ELF executable");
+  }
 
-    const entry = nat(v.getBigUint64(24, true), "ELF entry"), phoff = nat(v.getBigUint64(32, true), "program header offset");
+  // This public parser boundary is shared by guest imports and the compatibility API.
+  //@cg-expect-warning
+  parse(b: Uint8Array, name = "a.out"): ElfResult {
+    if (!isElf(b)) return failure(`${name}: not an ELF file`);
+    if (b.length < 64) return failure(`${name}: truncated ELF header`);
+    if ((b[4] ?? null) !== 2 || (b[5] ?? null) !== 1 || (b[6] ?? null) !== 1) return failure(`${name}: expected ELF64 little-endian version 1`);
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    if (v.getUint16(16, true) !== ET_EXEC) return failure(`${name}: only linked ET_EXEC files can become THX`);
+    if (v.getUint16(18, true) !== EM_RISCV) return failure(`${name}: expected a RISC-V executable`);
+    if (v.getUint32(20, true) !== 1) return failure(`${name}: unsupported ELF version`);
+
+    const entry = nat(v.getBigUint64(24, true)), phoff = nat(v.getBigUint64(32, true));
+    if (entry < 0) return failure("ELF entry is outside Thistle's address range");
+    if (phoff < 0) return failure("program header offset is outside Thistle's address range");
     const ehz = v.getUint16(52, true), phz = v.getUint16(54, true), phn = v.getUint16(56, true);
-    if (ehz !== 64 || phz !== 56 || !phn || phoff + phz * phn > b.length) fail(`${name}: bad ELF program header table`);
+    if (ehz !== 64 || phz !== 56 || !phn || phoff + phz * phn > b.length) return failure(`${name}: bad ELF program header table`);
 
     const x = new Exe("thistle64");
     x.isa = "rv64gc";
@@ -62,16 +70,21 @@ export class Elf {
 
     for (let i = 0; i < phn; i++) {
       const at = phoff + i * phz, typ = v.getUint32(at, true), fl = v.getUint32(at + 4, true);
-      const off = nat(v.getBigUint64(at + 8, true), `segment ${i} offset`);
-      const va = nat(v.getBigUint64(at + 16, true), `segment ${i} address`);
-      const fz = nat(v.getBigUint64(at + 32, true), `segment ${i} file size`);
-      const mz = nat(v.getBigUint64(at + 40, true), `segment ${i} memory size`);
-      const al0 = nat(v.getBigUint64(at + 48, true), `segment ${i} alignment`);
-      if (typ === PT_INTERP || typ === PT_DYNAMIC) fail(`${name}: dynamic ELF files are not self-contained`);
+      const off = nat(v.getBigUint64(at + 8, true));
+      if (off < 0) return failure(`segment ${i} offset is outside Thistle's address range`);
+      const va = nat(v.getBigUint64(at + 16, true));
+      if (va < 0) return failure(`segment ${i} address is outside Thistle's address range`);
+      const fz = nat(v.getBigUint64(at + 32, true));
+      if (fz < 0) return failure(`segment ${i} file size is outside Thistle's address range`);
+      const mz = nat(v.getBigUint64(at + 40, true));
+      if (mz < 0) return failure(`segment ${i} memory size is outside Thistle's address range`);
+      const al0 = nat(v.getBigUint64(at + 48, true));
+      if (al0 < 0) return failure(`segment ${i} alignment is outside Thistle's address range`);
+      if (typ === PT_INTERP || typ === PT_DYNAMIC) return failure(`${name}: dynamic ELF files are not self-contained`);
       if (typ === PT_PHDR) x.phdr = va;
       if (typ !== PT_LOAD || !mz) continue;
-      if (fz > mz || off + fz > b.length || va < 0x10000 || va + mz > x.mem) fail(`${name}: bad load segment ${i}`);
-      if (al0 > 1 && !pow2(al0)) fail(`${name}: segment ${i} alignment is not a power of two`);
+      if (fz > mz || off + fz > b.length || va < 0x10000 || va + mz > x.mem) return failure(`${name}: bad load segment ${i}`);
+      if (al0 > 1 && !pow2(al0)) return failure(`${name}: segment ${i} alignment is not a power of two`);
       let al = Math.min(al0 || 1, 65536);
       while (al > 1 && va % al) al >>= 1;
       const flg = `${fl & PF_R ? "r" : ""}${fl & PF_W ? "w" : ""}${fl & PF_X ? "x" : ""}`;
@@ -80,14 +93,14 @@ export class Elf {
       if (!x.phdr && phoff >= off && phoff + phz * phn <= off + fz) x.phdr = va + phoff - off;
     }
 
-    if (!loads || !x.sec.some(s => s.flg.includes("x") && entry >= s.addr && entry < s.addr + s.size)) fail(`${name}: entry point is not in an executable load segment`);
+    if (!loads || !x.sec.some(s => s.flg.includes("x") && entry >= s.addr && entry < s.addr + s.size)) return failure(`${name}: entry point is not in an executable load segment`);
+    const phdrAt = Math.ceil(end / 16) * 16, phdrBytes = phz * phn;
+    if (!x.phdr && phdrAt + phdrBytes > x.mem) return failure(`${name}: no address remains for the ELF program headers`);
     if (!x.phdr) {
-      const at = Math.ceil(end / 16) * 16, z = phz * phn;
-      ensure(!(at + z > x.mem), () => fail(`${name}: no address remains for the ELF program headers`));
-      x.phdr = at;
-      x.sec.push({ name: ".elf.phdr", flg: "r", align: 16, data: b.slice(phoff, phoff + z), size: z, addr: at });
+      x.phdr = phdrAt;
+      x.sec.push({ name: ".elf.phdr", flg: "r", align: 16, data: b.slice(phoff, phoff + phdrBytes), size: phdrBytes, addr: phdrAt });
     }
-    return x;
+    return { exe: x, message: null };
   }
 }
 

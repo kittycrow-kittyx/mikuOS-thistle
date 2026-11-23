@@ -1,6 +1,7 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
 import { BootRenderer } from "../boot/display.js";
+import { Elf, ElfErr } from "../elf/elf.js";
 import { createHash } from "node:crypto";
 import { parseJson } from "../core/json.js";
 import { defaultPrefs, parsePrefs } from "../sh/prefs.js";
@@ -1398,6 +1399,39 @@ test("background jobs and signals", async () => {
   x = await r.run("wait %1");
   assert.equal(x.code, 143);
   assert.equal(r.os.sh.jobs.size, 0);
+});
+
+test("ELF import validates results and preserves file errors", async () => {
+  const image = new Uint8Array(140), v = new DataView(image.buffer);
+  image.set([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1]);
+  v.setUint16(16, 2, true); v.setUint16(18, 243, true); v.setUint32(20, 1, true);
+  v.setBigUint64(24, 0x10000n, true); v.setBigUint64(32, 64n, true);
+  v.setUint16(52, 64, true); v.setUint16(54, 56, true); v.setUint16(56, 1, true);
+  v.setUint32(64, 1, true); v.setUint32(68, 5, true);
+  v.setBigUint64(72, 128n, true); v.setBigUint64(80, 0x10000n, true);
+  v.setBigUint64(96, 12n, true); v.setBigUint64(104, 12n, true); v.setBigUint64(112, 16n, true);
+  v.setUint32(128, 0x00700513, true); v.setUint32(132, 0x05d00893, true); v.setUint32(136, 0x00000073, true);
+  const parser = new Elf(), good = parser.parse(image, "exit.elf");
+  assert.equal(good.message, null);
+  assert.ok(good.exe !== null);
+  assert.equal(parser.run(image).entry, 0x10000);
+  const truncated = image.slice(0, 32), badHeader = parser.parse(truncated, "short.elf");
+  assert.equal(badHeader.exe, null);
+  assert.equal(badHeader.message, "short.elf: truncated ELF header");
+  assert.throws(() => parser.run(truncated, "short.elf"), ElfErr);
+  const overflow = image.slice();
+  new DataView(overflow.buffer).setBigUint64(24, 0xffffffffffffffffn, true);
+  assert.equal(parser.parse(overflow).message, "ELF entry is outside Thistle's address range");
+  const r = new Rig();
+  r.os.s.mkfile("/tmp/exit.elf", image);
+  r.os.s.mkfile("/tmp/short.elf", truncated);
+  let x = await r.run("elf2thx -o /tmp/exit.thx /tmp/exit.elf; /tmp/exit.thx");
+  assert.equal(x.code, 7);
+  assert.equal(x.err, "");
+  x = await r.run("elf2thx /tmp/short.elf");
+  assert.ok(x.err.includes("ENOEXEC"));
+  x = await r.run("elf2thx /tmp/missing.elf");
+  assert.ok(x.err.includes("ENOENT"));
 });
 
 test("shell exits preserve status, cleanup and subshell isolation without throwing", async () => {

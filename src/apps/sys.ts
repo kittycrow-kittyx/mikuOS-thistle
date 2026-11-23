@@ -192,15 +192,15 @@ export class Thsh extends App {
      * editing key bindings. Redirected stdin keeps the canonical fallback.
      */
     if (!tty) {
-      for (;;) {
+      while (!sh.exitRequested) {
         await s.out(sh.prompt());
         const input = await s.chunkb();
         // Shell input is consumed in the selected script or interactive-session mode.
         //@cg-expect-warning
         if (!input.length) return sh.last;
         await sh.run(dec(input).replace(/\r?\n$/, ""));
-        if (sh.exitRequested) return sh.last;
       }
+      return sh.last;
     }
 
     const inherited = tty.termios();

@@ -131,9 +131,9 @@ default: { i++; }
 }
     }
     if (a.length !== 1) bad("EINVAL", "elf2thx: one input ELF is required");
-    let x: Exe;
-    try { x = elf.run(s.readb(requireValue(a[0] ?? null, "src/apps/asm.ts:99")), (requireValue(a[0] ?? null, "src/apps/asm.ts:101") ?? null)); }
-    catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  return bad("ENOEXEC", e instanceof Error ? e.message : String(e)); }
+    const input = requireValue(a[0] ?? null, "elf2thx input");
+    const result = elf.parse(s.readb(input), input), x = result.exe;
+    if (x === null) return bad("ENOEXEC", result.message ?? "invalid ELF executable");
     const b = codec.pack(x);
     if (out === "-") await s.out(b); else put(s, out, b, 0o755);
     return 0;
