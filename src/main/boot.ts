@@ -2,7 +2,7 @@
 //@cg-expect-warning
 import type { WasmGuestRunner } from "../../thistle/src/wasm/guest-runner.js";
 import { ensure } from "../../thistle/src/core/err.js";
-import { Lim } from "../../thistle/src/core/cap.js";
+import { kernelOptions } from "../native/kernel-options.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
 import { Kern } from "../../thistle/src/core/kernel.js";
@@ -46,7 +46,7 @@ export class Os {
 
   constructor(readonly host: Host, net: Net) {
     const config = host.config ?? DEFAULT_CONFIG;
-    this.k = new Kern({ net, lim: Lim.host(), config, setId: host.setId ?? false, wasiGuest: host.wasiGuest });
+    this.k = new Kern(kernelOptions(net, config, host.setId ?? false, host.wasiGuest));
     this.k.ttyFn = (x, e) => { Promise.resolve(host.put(x, e ? "err" : "out")).catch(console.error); };
     image(this.k);
     this.tty = new Tty(
