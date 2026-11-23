@@ -125,14 +125,26 @@ export class Rm extends App {
     const rec = a.some(x => /^-.*r/.test(x)), force = a.some(x => /^-.*f/.test(x));
     const ps = a.filter(x => !x.startsWith("-"));
     if (!ps.length) bad("EINVAL", "rm: missing path");
+    const remove = (p: string): void => {
+      if (s.stat(p, false).kind === "dir") {
+        ensure(rec, () => bad("EISDIR", p));
+        for (const [n] of s.list(p)) go(join(norm(p, s.cwd), n));
+        s.rm(p, true);
+      } else {
+        s.rm(p);
+      }
+    };
     const go = (p: string): void => {
+      if (!force) {
+        // No catch boundary: propagate the original error unchanged.
+        remove(p);
+        return;
+      }
       try {
-        if (s.stat(p, false).kind === "dir") {
-          ensure(rec, () => bad("EISDIR", p));
-          for (const [n] of s.list(p)) go(join(norm(p, s.cwd), n));
-          s.rm(p, true);
-        } else s.rm(p);
-      } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (!force) throw e; }
+        remove(p);
+      } catch {
+        // -f is best effort at each traversal level, including nested paths.
+      }
     };
     for (const p of ps) go(p);
     return 0;
