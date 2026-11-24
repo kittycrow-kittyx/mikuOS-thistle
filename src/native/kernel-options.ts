@@ -1,4 +1,4 @@
-import { Lim } from "../../thistle/src/core/cap.js";
+import type { Lim } from "../../thistle/src/core/cap.js";
 import type { SystemConfig } from "../../thistle/src/core/config.js";
 import type { Net } from "../../thistle/src/net/net.js";
 import type { WasmGuestRunner } from "../../thistle/src/wasm/guest-runner.js";
@@ -19,14 +19,11 @@ export interface KernelOptions {
 export const kernelOptions = (
   net: Net,
   config: SystemConfig,
-  setId: boolean,
-  wasiGuest: WasmGuestRunner,
+  capabilities: Pick<KernelOptions, "lim" | "setId" | "wasiGuest">,
 ): KernelOptions => ({
   net,
-  lim: Lim.host(),
   config,
-  setId,
-  wasiGuest,
+  ...capabilities,
 });
 
 /** Fail closed if another caller attempts an implicit host dependency. */

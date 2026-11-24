@@ -8,8 +8,9 @@ set-ID policy and WASI guest execution into the kernel explicitly.
 
 - `KernelOptions`: structured host capability contract, matching Thistle's
   pinned `KernelOptions` interface.
-- `kernelOptions(net, config, setId, wasiGuest)`: constructs that contract.
-  Its only side effect is obtaining the pinned `Lim.host()` limits.
+- `kernelOptions(net, config, capabilities)`: constructs that contract with
+  an explicitly supplied resource-limit, set-ID and WASI record. Resource
+  discovery occurs only in `src/main/host-boot.ts`.
 - `defaultKernelOptions()`: rejects implicit host configuration with an
   explicit error. Native mikuOS must provide options; this function never
   invents network access or a WASI runner.

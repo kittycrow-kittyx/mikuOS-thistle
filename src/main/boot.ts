@@ -3,6 +3,7 @@
 import type { WasmGuestRunner } from "../../thistle/src/wasm/guest-runner.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import { kernelOptions } from "../native/kernel-options.js";
+import type { KernelOptions } from "../native/kernel-options.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { Kern } from "../../thistle/src/core/kernel.js";
 import { Sys } from "../../thistle/src/core/sys.js";
@@ -25,6 +26,7 @@ export interface HostState {
 
 export interface Host {
   state: HostState | null;
+  lim: KernelOptions["lim"];
   wasiGuest: WasmGuestRunner;
   put(s: string, ch: Ch): void | Promise<void>;
   halt: (() => void) | null;
@@ -50,7 +52,7 @@ export class Os {
 
   constructor(readonly host: Host, net: Net) {
     const config = host.config ?? DEFAULT_CONFIG;
-    this.k = new Kern(kernelOptions(net, config, host.setId ?? false, host.wasiGuest));
+    this.k = new Kern(kernelOptions(net, config, { lim: host.lim, setId: host.setId ?? false, wasiGuest: host.wasiGuest }));
     this.k.ttyFn = (x, e) => { Promise.resolve(host.put(x, e ? "err" : "out")).catch(console.error); };
     image(this.k);
     this.tty = new Tty(
