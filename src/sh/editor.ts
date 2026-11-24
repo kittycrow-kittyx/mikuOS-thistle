@@ -634,7 +634,9 @@ default: {
       return;
 
   }
-key(raw: string): void {
+  key(raw: string): void {
+    // Busy input belongs to the foreground process; otherwise history and completion
+    // state are reset before key dispatch, preserving remapped key precedence.
     if (this.host.busy()) {
       this.host.passthrough(raw);
       return;
@@ -668,7 +670,8 @@ key(raw: string): void {
 
     if (this.suggestionKey(input)) return;
     if (this.controlKey(input)) return;
-    if (this.editKey(input)) return;
+    if (this.cursorKey(input)) return;
+    if (this.deleteKey(input)) return;
     if (this.navigationKey(input, historyPreviousKey, historyNextKey)) return;
 
     if ([...input].every(character => character >= " " && character !== "\x7f")) {
@@ -748,7 +751,7 @@ key(raw: string): void {
     return false;
   }
 
-  private editKey(input: string): boolean {
+  private cursorKey(input: string): boolean {
     if (input === "\x01" || input === "\x1b[H" || input === "\x1b[1~") {
       this.cursor = 0;
       this.suggestionIndex = 0;
@@ -769,6 +772,11 @@ key(raw: string): void {
 
     if (input === "\x1b[C" || input === "\x06") { this.moveRight(); return true; }
 
+    return false;
+  }
+
+  private deleteKey(input: string): boolean {
+    // All deletion commands retain the original cursor and suggestion reset rules.
     if (input === "\x7f" || input === "\b") { this.backspace(); return true; }
 
     if (input === "\x1b[3~") { this.deleteForward(); return true; }
