@@ -666,7 +666,19 @@ key(raw: string): void {
 
     if (!completionKey) this.resetCompletion();
 
-    if (this.reverse) { this.reverseKey(input); return; }
+    if (this.suggestionKey(input)) return;
+    if (this.controlKey(input)) return;
+    if (this.editKey(input)) return;
+    if (this.navigationKey(input, historyPreviousKey, historyNextKey)) return;
+
+    if ([...input].every(character => character >= " " && character !== "\x7f")) {
+      this.insert(input);
+    }
+  }
+
+  private suggestionKey(input: string): boolean {
+    const prefs = this.host.shell.prefs;
+    if (this.reverse) { this.reverseKey(input); return true; }
 
     if (prefs.reverseSearch && keyMatches(input, prefs.keyHistorySearchReverse)) {
       this.reverse = {
@@ -677,30 +689,35 @@ key(raw: string): void {
         index: 0,
       };
       this.render();
-      return;
+      return true;
     }
 
-    if (keyMatches(input, prefs.keySuggestionOlder)) { this.olderSuggestion(); return; }
+    if (keyMatches(input, prefs.keySuggestionOlder)) { this.olderSuggestion(); return true; }
 
-    if (keyMatches(input, prefs.keySuggestionNewer)) { this.newerSuggestion(); return; }
+    if (keyMatches(input, prefs.keySuggestionNewer)) { this.newerSuggestion(); return true; }
 
     if (keyMatches(input, prefs.keySuggestionAccept)) {
       this.acceptSuggestion();
-      return;
+      return true;
     }
 
     if (keyMatches(input, prefs.keySuggestionAcceptWord)) {
       this.acceptSuggestionWord();
-      return;
+      return true;
     }
 
     if (keyMatches(input, prefs.keySuggestionSuppress)) {
       this.suggestionSuppressed = true;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
+    return false;
+  }
+
+  private controlKey(input: string): boolean {
+    const prefs = this.host.shell.prefs;
     if (input === "\x03") {
       this.line = "";
       this.cursor = 0;
@@ -712,27 +729,31 @@ key(raw: string): void {
       this.suggestionSuppressed = false;
       this.host.write("^C\r\n");
       this.render();
-      return;
+      return true;
     }
 
-    if (input === "\x04" && !this.line) { this.endInput(); return; }
+    if (input === "\x04" && !this.line) { this.endInput(); return true; }
 
     if (input === "\r" || input === "\n") {
       this.submit();
-      return;
+      return true;
     }
 
     if (input === "\x0c") {
       this.host.write(prefs.clearScrollback ? "\x1b[3J\x1b[2J\x1b[H" : "\x1b[2J\x1b[H");
       this.render();
-      return;
+      return true;
     }
 
+    return false;
+  }
+
+  private editKey(input: string): boolean {
     if (input === "\x01" || input === "\x1b[H" || input === "\x1b[1~") {
       this.cursor = 0;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
     // End remains ordinary cursor movement when it is remapped away from
@@ -741,30 +762,30 @@ key(raw: string): void {
       this.cursor = this.line.length;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
-    if (input === "\x1b[D" || input === "\x02") { this.moveLeft(); return; }
+    if (input === "\x1b[D" || input === "\x02") { this.moveLeft(); return true; }
 
-    if (input === "\x1b[C" || input === "\x06") { this.moveRight(); return; }
+    if (input === "\x1b[C" || input === "\x06") { this.moveRight(); return true; }
 
-    if (input === "\x7f" || input === "\b") { this.backspace(); return; }
+    if (input === "\x7f" || input === "\b") { this.backspace(); return true; }
 
-    if (input === "\x1b[3~") { this.deleteForward(); return; }
+    if (input === "\x1b[3~") { this.deleteForward(); return true; }
 
     if (input === "\x15") {
       this.line = this.line.slice(this.cursor);
       this.cursor = 0;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
     if (input === "\x0b") {
       this.line = this.line.slice(0, this.cursor);
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
     if (input === "\x17") {
@@ -775,25 +796,28 @@ key(raw: string): void {
       this.cursor = at;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
-    if (historyPreviousKey) { this.previousHistory(); return; }
+    return false;
+  }
 
-    if (historyNextKey) { this.nextHistory(); return; }
+  private navigationKey(input: string, previous: boolean, next: boolean): boolean {
+    const prefs = this.host.shell.prefs;
+    if (previous) { this.previousHistory(); return true; }
+
+    if (next) { this.nextHistory(); return true; }
 
     if (keyMatches(input, prefs.keyCompleteNext)) {
       this.complete(false);
-      return;
+      return true;
     }
 
     if (keyMatches(input, prefs.keyCompletePrevious)) {
       this.complete(true);
-      return;
+      return true;
     }
 
-    if ([...input].every(character => character >= " " && character !== "\x7f")) {
-      this.insert(input);
-    }
+    return false;
   }
 }
