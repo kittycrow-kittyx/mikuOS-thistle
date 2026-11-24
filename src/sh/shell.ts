@@ -77,6 +77,12 @@ class CaptureOut extends Stream implements Out {
 
 const built = new Set([":", "command", "cd", "export", "unset", "set", "alias", "unalias", "history", "prefs", "jobs", "fg", "wait", "umask", "exit", "logout", "reboot"]);
 
+function missingHistoryFile<T>(caughtValue: T): null {
+  const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
+  if (error instanceof KErr && error.code === "ENOENT") return null;
+  throw error;
+}
+
 export class Shell {
   readonly hist: string[] = [];
   prefs: ShellPrefs = defaultPrefs();
@@ -103,14 +109,13 @@ export class Shell {
   }
   reloadPreferences():string[]{let prefs=defaultPrefs();const warnings:string[]=[];for(const path of ["/opt/prefs",`${this.home().replace(/\/$/,"")}/.mikuos-prefs`]){const raw=this.maybeRead(path);if(raw===null)continue;const parsed=parsePrefs(raw,prefs);prefs=parsed.prefs;warnings.push(...parsed.warnings.map(x=>`${path}: ${x}`));}this.prefs=prefs;return warnings;}
 
-  private prepareHistoryFile(path: string): void {
-    let current: ReturnType<Sys["stat"]>;
-    try {
-      current = this.s.stat(path, false);
-    } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      if (error instanceof KErr && error.code === "ENOENT") return;
-      throw error;
-    }
+  private async historyMetadata(path: string): Promise<ReturnType<Sys["stat"]>> {
+    return this.s.stat(path, false);
+  }
+
+  private async prepareHistoryFile(path: string): Promise<void> {
+    const current = await this.historyMetadata(path).catch(missingHistoryFile);
+    if (current === null) return;
 
     if (current.kind === "file" && current.uid === this.s.euid) {
       (!(current.mode & 0o200)) && (this.s.chmod(path, 0o600));
@@ -122,21 +127,18 @@ export class Shell {
     const timestamp = Date.now();
     for (let index = 0; index < 100; index++) {
       const backup = `${path}.recovered-${timestamp}${index ? `-${index}` : ""}`;
-      try {
-        this.s.stat(backup, false);
-      } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-        if (!(error instanceof KErr) || error.code !== "ENOENT") throw error;
-        this.s.mv(path, backup);
-        return;
-      }
+      const existing = await this.historyMetadata(backup).catch(missingHistoryFile);
+      if (existing !== null) continue;
+      this.s.mv(path, backup);
+      return;
     }
     bad("EEXIST", `no free backup filename for ${path}`);
   }
 
-  saveHistory(): void {
+  async saveHistory(): Promise<void> {
     if (!this.prefs.history) return;
     const path = this.historyFile();
-    this.prepareHistoryFile(path);
+    await this.prepareHistoryFile(path);
     this.s.write(path, encodeHistory(this.hist), false, 0o600);
     this.s.chmod(path, 0o600);
     this.historyWarning = false;
@@ -144,9 +146,9 @@ export class Shell {
 
   // Command, job and here-document state remain scoped to their current execution phase.
   //@cg-expect-warning
-  private async recordHistory(src:string):Promise<void>{this.ensureUserState();if(!this.prefs.history||(this.prefs.historyIgnoreSpace&&/^[ \t]/.test(src)))return;const entry=src.replace(/\r\n/g,"\n").replace(/\r/g,"\n").replace(/\n+$/,"");if(!entry.trim()||this.prefs.historyIgnorePatterns.some(p=>globMatches(p,entry)))return;if((this.hist.at(-1) ?? null)===entry)return;if(this.prefs.historyDeduplicate){for(let i=this.hist.length-1;i>=0;i--)if((this.hist[i] ?? null)===entry)this.hist.splice(i,1);}this.hist.push(entry);if(this.hist.length>this.prefs.historySize)this.hist.splice(0,this.hist.length-this.prefs.historySize);this.saveHistory();}
+  private async recordHistory(src:string):Promise<void>{this.ensureUserState();if(!this.prefs.history||(this.prefs.historyIgnoreSpace&&/^[ \t]/.test(src)))return;const entry=src.replace(/\r\n/g,"\n").replace(/\r/g,"\n").replace(/\n+$/,"");if(!entry.trim()||this.prefs.historyIgnorePatterns.some(p=>globMatches(p,entry)))return;if((this.hist.at(-1) ?? null)===entry)return;if(this.prefs.historyDeduplicate){for(let i=this.hist.length-1;i>=0;i--)if((this.hist[i] ?? null)===entry)this.hist.splice(i,1);}this.hist.push(entry);if(this.hist.length>this.prefs.historySize)this.hist.splice(0,this.hist.length-this.prefs.historySize);await this.saveHistory();}
   historyMatches(prefix:string):string[]{this.ensureUserState();return this.prefs.autocomplete?findHistoryMatches(this.hist,prefix,this.prefs.autocompleteCaseSensitive):[];}
-  clearHistory():void{this.hist.splice(0,this.hist.length);this.saveHistory();}
+  async clearHistory():Promise<void>{this.hist.splice(0,this.hist.length);await this.saveHistory();}
 
   prompt(): string {
     const u = String(this.s.env("USER") ?? "root");
@@ -637,9 +639,9 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
         return 0;
       case "unalias": for (const x of a) this.aliases.delete(x); return 0;
       case "history": {
-        if ((a[0] ?? null) === "-c") { this.clearHistory(); return 0; }
-        if ((a[0] ?? null) === "-w") { this.saveHistory(); return 0; }
-        if ((a[0] ?? null) === "-d") { const n=Number.parseInt(a[1]??"",10); ensure(!(!Number.isSafeInteger(n)||n<1||n>this.hist.length), () => bad("EINVAL","history index")); this.hist.splice(n-1,1); this.saveHistory(); return 0; }
+        if ((a[0] ?? null) === "-c") { await this.clearHistory(); return 0; }
+        if ((a[0] ?? null) === "-w") { await this.saveHistory(); return 0; }
+        if ((a[0] ?? null) === "-d") { const n=Number.parseInt(a[1]??"",10); ensure(!(!Number.isSafeInteger(n)||n<1||n>this.hist.length), () => bad("EINVAL","history index")); this.hist.splice(n-1,1); await this.saveHistory(); return 0; }
         const count=(a[0] ?? null)===null?this.hist.length:Number.parseInt((requireValue(a[0] ?? null, "src/sh/shell.ts:637") ?? null),10); if(!Number.isSafeInteger(count)||count<0) bad("EINVAL","history count");
         const start=Math.max(0,this.hist.length-count); for(let i=start;i<this.hist.length;i++) await this.s.out(`${String(i+1).padStart(5)}  ${requireValue(this.hist[i] ?? null, "src/sh/shell.ts:625").replace(/\n/g,"\\n")}\n`); return 0;
       }
