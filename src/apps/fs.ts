@@ -28,28 +28,42 @@ export class Pwd extends App {
   override async run(s: Sys): Promise<number> { await s.out(s.cwd + "\n"); return 0; }
 }
 
+interface ListMode {
+  all: boolean;
+  long: boolean;
+  human: boolean;
+  recursive: boolean;
+}
+
 export class Ls extends App {
   constructor() { super("ls", "List directory contents.", "ls [-alhR] [path ...]"); }
 
   override async run(s: Sys, a: string[]): Promise<number> {
     const fl = a.filter(x => /^-[^-]/.test(x)).join("");
-    const all = fl.includes("a"), long = fl.includes("l"), hum = fl.includes("h"), rec = fl.includes("R");
+    const mode: ListMode = { all: fl.includes("a"), long: fl.includes("l"), human: fl.includes("h"), recursive: fl.includes("R") };
     const ps = a.filter(x => !x.startsWith("-"));
     if (!ps.length) ps.push(".");
-    const one = async (p: string, head: boolean): Promise<void> => {
-      const st = s.stat(p, false);
-      if (st.kind !== "dir") { await s.out(this.row(s, base(p), s.node(p, false), long, hum)); return; }
-      if (head) await s.out(`${p}:\n`);
-      let q = s.list(p);
-      if (!all) q = q.filter(([n]) => !n.startsWith("."));
-      if (long) for (const [n, v] of q) await s.out(this.row(s, n, v, true, hum));
-      else await s.out(cols(q.map(([n]) => n)));
-      // Stream and traversal modes select the applicable I/O checks and exit paths.
-      //@cg-expect-warning
-      if (rec) for (const [n, v] of q) if (v.kind === "dir" && n !== "." && n !== "..") { await s.out("\n"); await one(join(norm(p, s.cwd), n), true); }
-    };
-    for (let i = 0; i < ps.length; i++) { await one(requireValue(ps[i] ?? null, "src/apps/fs.ts:34"), ps.length > 1); if (i < ps.length - 1) await s.out("\n"); }
+    for (let i = 0; i < ps.length; i++) {
+      await this.listOne(s, requireValue(ps[i] ?? null, "ls path"), ps.length > 1, mode);
+      if (i < ps.length - 1) await s.out("\n");
+    }
     return 0;
+  }
+
+  private async listOne(s: Sys, p: string, head: boolean, mode: ListMode): Promise<void> {
+    const st = s.stat(p, false);
+    if (st.kind !== "dir") { await s.out(this.row(s, base(p), s.node(p, false), mode.long, mode.human)); return; }
+    if (head) await s.out(`${p}:\n`);
+    let entries = s.list(p);
+    if (!mode.all) entries = entries.filter(([name]) => !name.startsWith("."));
+    if (mode.long) for (const [name, node] of entries) await s.out(this.row(s, name, node, true, mode.human));
+    else await s.out(cols(entries.map(([name]) => name)));
+    if (!mode.recursive) return;
+    for (const [name, node] of entries) {
+      if (node.kind !== "dir" || name === "." || name === "..") continue;
+      await s.out("\n");
+      await this.listOne(s, join(norm(p, s.cwd), name), true, mode);
+    }
   }
 
   private row(s: Sys, n: string, v: VNode, long: boolean, hum: boolean): string {
@@ -61,6 +75,14 @@ export class Ls extends App {
   }
 }
 
+async function printCat(s: Sys, text: string, line: number | null): Promise<number | null> {
+  if (line === null) { await s.out(text); return null; }
+  const lines = withValue(text.match(/.*(?:\n|$)/g) ?? null, value => value.filter(Boolean)) ?? [];
+  let next = line;
+  for (const value of lines) await s.out(`${String(next++).padStart(6)}\t${value}`);
+  return next;
+}
+
 export class Cat extends App {
   constructor() { super("cat", "Concatenate files to standard output.", "cat [-n] [file ...]"); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -68,20 +90,15 @@ export class Cat extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     const num = a.includes("-n");
     const ps = a.filter(x => x !== "-n");
-    let n = 1;
-    const put = async (x: string): Promise<void> => {
-      if (!num) { await s.out(x); return; }
-      const lines = withValue(x.match(/.*(?:\n|$)/g) ?? null, value => value.filter(Boolean)) ?? [];
-      for (const line of lines) await s.out(`${String(n++).padStart(6)}\t${line}`);
-    };
-    if (!ps.length) await put(await s.input());
+    let line: number | null = num ? 1 : null;
+    if (!ps.length) await printCat(s, await s.input(), line);
     else for (const p of ps) {
       // Stream and traversal modes select the applicable I/O checks and exit paths.
       //@cg-expect-warning
-      if (p === "-") { await put(await s.input()); continue; }
+      if (p === "-") { line = await printCat(s, await s.input(), line); continue; }
       // Stream and traversal modes select the applicable I/O checks and exit paths.
       //@cg-expect-warning
-      if (num) { await put(s.read(p)); continue; }
+      if (num) { line = await printCat(s, s.read(p), line); continue; }
       const fd = s.open(p);
       // Stream and traversal modes select the applicable I/O checks and exit paths.
       //@cg-expect-warning

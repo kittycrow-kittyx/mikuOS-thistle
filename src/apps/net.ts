@@ -39,6 +39,34 @@ const exists = (s: Sys, p: string): boolean => {
   try { s.stat(p); return true; } catch { return false; }
 };
 
+async function download(s: Sys, o: WOpt, url: string, path: string): Promise<number> {
+  if (!o.quiet) await s.err(`${o.spider ? "Spider" : "Request"}: ${url}\n`);
+  const q = { body: o.body, url, method: o.spider ? "HEAD" : o.method, hdr: o.hdr, redirs: o.redirs, timeout: o.timeout, max: o.max };
+  const r = await s.net(q);
+  if (o.server) {
+    await s.err(`  HTTP ${r.status} ${r.text}\n`);
+    for (const [k, v] of Object.entries(r.hdr)) await s.err(`  ${k}: ${v}\n`);
+  }
+  if (r.status < 200 || r.status >= 400) {
+    await s.err(`${url}: server returned ${r.status} ${r.text}\n`);
+    return 8;
+  }
+  if (o.spider) {
+    (!o.quiet) && (await s.err(`Remote file exists (${r.status}).\n`));
+    return 0;
+  }
+  if (path === "-") await s.out(r.body);
+  else s.writeb(path, r.body);
+  if (!o.quiet) await s.err(`${path === "-" ? "stdout" : path} saved [${size(r.body.length)}]\n`);
+  return 0;
+}
+
+async function downloadFailure<T>(s: Sys, caughtValue: T): Promise<number> {
+  const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
+  await s.err(`wget: ${msg(error)}\n`);
+  return error instanceof KErr && ["EACCES", "EEXIST", "ENOSPC", "EROFS"].includes(error.code) ? 3 : 4;
+}
+
 export class Wget extends App {
   constructor() {
     super("wget", "Retrieve files over HTTP or HTTPS.", "wget [-qS] [--spider] [-O file] [-T sec] [--max-size bytes] URL ...");
@@ -52,36 +80,10 @@ export class Wget extends App {
     for (const url of o.urls) {
       const path = o.out ?? fname(url);
       if (!o.spider && path !== "-" && o.nc && exists(s, path)) { await s.err(`${path}: EEXIST: file exists\n`); code = 1; continue; }
-      const result = await this.download(s, o, url, path).catch(async <T>(caughtValue: T): Promise<number> => {
-        const e = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
-        await s.err(`wget: ${msg(e)}\n`);
-        return e instanceof KErr && ["EACCES", "EEXIST", "ENOSPC", "EROFS"].includes(e.code) ? 3 : 4;
-      });
+      const result = await download(s, o, url, path).catch(<T>(caughtValue: T) => downloadFailure(s, caughtValue));
       if (result !== 0) code = result;
     }
     return code;
-  }
-
-  private async download(s: Sys, o: WOpt, url: string, path: string): Promise<number> {
-    if (!o.quiet) await s.err(`${o.spider ? "Spider" : "Request"}: ${url}\n`);
-    const q = { body: o.body, url, method: o.spider ? "HEAD" : o.method, hdr: o.hdr, redirs: o.redirs, timeout: o.timeout, max: o.max };
-    const r = await s.net(q);
-    if (o.server) {
-      await s.err(`  HTTP ${r.status} ${r.text}\n`);
-      for (const [k, v] of Object.entries(r.hdr)) await s.err(`  ${k}: ${v}\n`);
-    }
-    if (r.status < 200 || r.status >= 400) {
-      await s.err(`${url}: server returned ${r.status} ${r.text}\n`);
-      return 8;
-    }
-    if (o.spider) {
-      (!o.quiet) && (await s.err(`Remote file exists (${r.status}).\n`));
-      return 0;
-    }
-    if (path === "-") await s.out(r.body);
-    else s.writeb(path, r.body);
-    if (!o.quiet) await s.err(`${path === "-" ? "stdout" : path} saved [${size(r.body.length)}]\n`);
-    return 0;
   }
 
   // HTTP outcome and destination handling preserve command-specific exit status.

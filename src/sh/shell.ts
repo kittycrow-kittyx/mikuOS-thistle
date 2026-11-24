@@ -277,13 +277,7 @@ export class Shell {
   ): Promise<number> {
     if (this.exitRequested || !src.trim()) return this.last;
     this.ensureUserState();
-    if (save) await this.recordHistory(src).catch(async <T>(caughtValue: T): Promise<void> => {
-      // Auxiliary history must not prevent execution of the submitted command.
-      if (this.historyWarning) return;
-      this.historyWarning = true;
-      const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
-      await this.s.err(`thsh: history not saved (${msg(error)}); commands will still run\n`);
-    });
+    if (save) await this.recordHistory(src).catch(<T>(caughtValue: T) => this.historyFailure(caughtValue));
 
     let commandSource = src;
     let bodies = heredocBodies;
@@ -303,12 +297,22 @@ export class Shell {
       }
     }
 
-    return this.runCommands(commandSource, bodies).catch(async <T>(caughtValue: T): Promise<number> => {
-      const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
-      await this.s.err(`thsh: ${msg(error)}\n`);
-      this.last = 2;
-      return this.last;
-    });
+    return this.runCommands(commandSource, bodies).catch(<T>(caughtValue: T) => this.commandFailure(caughtValue));
+  }
+
+  private async historyFailure<T>(caughtValue: T): Promise<void> {
+    // Auxiliary history must not prevent execution of the submitted command.
+    if (this.historyWarning) return;
+    this.historyWarning = true;
+    const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
+    await this.s.err(`thsh: history not saved (${msg(error)}); commands will still run\n`);
+  }
+
+  private async commandFailure<T>(caughtValue: T): Promise<number> {
+    const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
+    await this.s.err(`thsh: ${msg(error)}\n`);
+    this.last = 2;
+    return this.last;
   }
 
   private async runCommands(commandSource: string, bodies: readonly string[]): Promise<number> {
