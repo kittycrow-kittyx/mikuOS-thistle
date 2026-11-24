@@ -35,6 +35,7 @@ The [architecture](architecture.md) describes the runtime and kernel boundary. S
 - [main/dir](modules/main/dir.md)
 - [main/host-module](modules/main/host-module.md)
 - [main/image](modules/main/image.md)
+- [main/root-files](modules/main/root-files.md)
 - [main/pkg-format](modules/main/pkg-format.md)
 - [main/pkg](modules/main/pkg.md)
 - [main/server](modules/main/server.md)
