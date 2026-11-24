@@ -38,7 +38,7 @@ interface PrefixHistoryState {
 
 const trailingContinuation = (source: string): boolean => {
   let count = 0;
-  for (let i = source.length - 1; i >= 0 && (source[i] ?? null) === "\\"; i--) count++;
+  for (let i = source.length - 1; i >= 0 && source.charAt(i) === "\\"; i--) count++;
   return count % 2 === 1;
 };
 
@@ -321,8 +321,8 @@ export class LineEditor {
 
     if (suggestion) {
       let end = this.line.length;
-      while (end < suggestion.length && /\s/.test(requireValue(suggestion[end] ?? null, "src/sh/editor.ts:322"))) end++;
-      while (end < suggestion.length && !/\s/.test(requireValue(suggestion[end] ?? null, "src/sh/editor.ts:323"))) end++;
+      while (end < suggestion.length && /\s/.test(suggestion.charAt(end))) end++;
+      while (end < suggestion.length && !/\s/.test(suggestion.charAt(end))) end++;
       this.line = suggestion.slice(0, end);
       this.cursor = this.line.length;
       this.suggestionIndex = 0;
@@ -332,8 +332,8 @@ export class LineEditor {
 
     if (this.cursor < this.line.length) {
       let end = this.cursor;
-      while (end < this.line.length && /\s/.test(requireValue(this.line[end] ?? null, "src/sh/editor.ts:333"))) end++;
-      while (end < this.line.length && !/\s/.test(requireValue(this.line[end] ?? null, "src/sh/editor.ts:334"))) end++;
+      while (end < this.line.length && /\s/.test(this.line.charAt(end))) end++;
+      while (end < this.line.length && !/\s/.test(this.line.charAt(end))) end++;
       this.cursor = end;
       this.render();
       return;
@@ -769,8 +769,8 @@ key(raw: string): void {
 
     if (input === "\x17") {
       let at = this.cursor;
-      while (at > 0 && /\s/.test(requireValue(this.line[at - 1] ?? null, "src/sh/editor.ts:666"))) at--;
-      while (at > 0 && !/\s/.test(requireValue(this.line[at - 1] ?? null, "src/sh/editor.ts:667"))) at--;
+      while (at > 0 && /\s/.test(this.line.charAt(at - 1))) at--;
+      while (at > 0 && !/\s/.test(this.line.charAt(at - 1))) at--;
       this.line = this.line.slice(0, at) + this.line.slice(this.cursor);
       this.cursor = at;
       this.suggestionIndex = 0;

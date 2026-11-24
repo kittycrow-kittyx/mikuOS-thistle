@@ -41,7 +41,7 @@ export class Printf extends App {
       if (k === "%") return "%";
       const v = a[i++] ?? "";
       if (k === "s") return v;
-      if (k === "c") return v[0] ?? "";
+      if (k === "c") return v.charAt(0);
       const n = Number.parseInt(v, 0);
       if (!Number.isFinite(n)) return "0";
       return k === "x" ? n.toString(16) : k === "X" ? n.toString(16).toUpperCase() : k === "o" ? n.toString(8) : String(n);
@@ -183,7 +183,7 @@ export class Tr extends App {
     for (const c of await s.input()) { const i = x.indexOf(c); switch (true) {
 case !!(i < 0): { out += c;
 break; }
-case !!(!del): { out += y[Math.min(i, y.length - 1)] ?? "";
+case !!(!del): { out += y.charAt(Math.min(i, y.length - 1));
 break; }
 } }
     await s.out(out); return 0;
@@ -195,7 +195,7 @@ export class Sed extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     const quiet = (a[0] ?? null) === "-n"; if (quiet) a.shift();
     const ex = (a.shift() ?? null); if (ex === null || !ex.startsWith("s")) return bad("EINVAL", "sed: substitution required");
-    const d = (ex[1] ?? null); if (!d) return bad("EINVAL", "sed expression");
+    const d = ex.charAt(1); if (!d) return bad("EINVAL", "sed expression");
     const p = ex.slice(2).split(d); if (p.length < 3) bad("EINVAL", "sed expression");
     let rx: RegExp = /(?:)/; try { rx = new RegExp(requireValue(p[0] ?? null, "src/apps/text.ts:179"), (withValue((p[2] ?? null) ?? null, value => value.includes("g")) ?? null) ? "g" : ""); } catch { return bad("EINVAL", "sed pattern"); }
     for (const [, x] of await src(s, a)) for (const line of lines(x)) {
@@ -241,14 +241,14 @@ const b64e = (b: Uint8Array): string => {
   let s = ""; for (const x of b) s += String.fromCharCode(x);
   if (typeof btoa === "function") return btoa(s);
   const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let out = ""; for (let i = 0; i < b.length; i += 3) { const n = (requireValue(b[i] ?? null, "src/apps/text.ts:223") << 16) | ((b[i + 1] ?? 0) << 8) | (b[i + 2] ?? 0); out += requireValue(abc[(n >> 18) & 63] ?? null, "src/apps/text.ts:223") + requireValue(abc[(n >> 12) & 63] ?? null, "src/apps/text.ts:223") + (i + 1 < b.length ? requireValue(abc[(n >> 6) & 63] ?? null, "src/apps/text.ts:223") : "=") + (i + 2 < b.length ? requireValue(abc[n & 63] ?? null, "src/apps/text.ts:223") : "="); } return out;
+  let out = ""; for (let i = 0; i < b.length; i += 3) { const n = (requireValue(b[i] ?? null, "src/apps/text.ts:223") << 16) | ((b[i + 1] ?? 0) << 8) | (b[i + 2] ?? 0); out += abc.charAt((n >> 18) & 63) + abc.charAt((n >> 12) & 63) + (i + 1 < b.length ? abc.charAt((n >> 6) & 63) : "=") + (i + 2 < b.length ? abc.charAt(n & 63) : "="); } return out;
 };
 
 const b64d = (x: string): Uint8Array => {
   x = x.replace(/\s/g, "");
   if (typeof atob === "function") return Uint8Array.from(atob(x), c => c.charCodeAt(0));
   const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"; const out: number[] = [];
-  for (let i = 0; i < x.length; i += 4) { const n = (abc.indexOf(requireValue(x[i] ?? null, "src/apps/text.ts:230")) << 18) | (abc.indexOf(requireValue(x[i + 1] ?? null, "src/apps/text.ts:230")) << 12) | ((abc.indexOf(requireValue(x[i + 2] ?? null, "src/apps/text.ts:230")) & 63) << 6) | (abc.indexOf(requireValue(x[i + 3] ?? null, "src/apps/text.ts:230")) & 63); out.push((n >> 16) & 255); if ((x[i + 2] ?? null) !== "=") out.push((n >> 8) & 255); if ((x[i + 3] ?? null) !== "=") out.push(n & 255); } return new Uint8Array(out);
+  for (let i = 0; i < x.length; i += 4) { const n = (abc.indexOf(requireValue(x[i] ?? null, "src/apps/text.ts:230")) << 18) | (abc.indexOf(requireValue(x[i + 1] ?? null, "src/apps/text.ts:230")) << 12) | ((abc.indexOf(requireValue(x[i + 2] ?? null, "src/apps/text.ts:230")) & 63) << 6) | (abc.indexOf(requireValue(x[i + 3] ?? null, "src/apps/text.ts:230")) & 63); out.push((n >> 16) & 255); if (x.charAt(i + 2) !== "=") out.push((n >> 8) & 255); if (x.charAt(i + 3) !== "=") out.push(n & 255); } return new Uint8Array(out);
 };
 
 export class Base64 extends App {

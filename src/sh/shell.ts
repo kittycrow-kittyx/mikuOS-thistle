@@ -331,31 +331,7 @@ export class Shell {
       u.bg = r.bg;
       u.src = r.src;
 
-      for (const cmd of u.pipe) {
-        for (const redir of cmd.redir) {
-          if (redir.mode !== "here") continue;
-
-          const body = (bodies[heredocAt++] ?? null);
-
-          if (body === null) {
-            bad(
-              "EINVAL",
-              `${redir.path.v}: missing here-document body`,
-            );
-          }
-
-          redir.body = redir.expand
-            ? await expandHereDoc(
-                requireValue(body ?? null, "src/sh/shell.ts:341"),
-                env,
-                this.s.pid,
-                code,
-                this.lastBg,
-                command => this.commandSubstitute(command),
-              )
-            : requireValue(body ?? null, "src/sh/shell.ts:348");
-        }
-      }
+      heredocAt = await this.bindHereDocs(u, bodies, heredocAt, env, code);
 
       if (r.gate === "&&" && code !== 0) continue;
       if (r.gate === "||" && code === 0) continue;
@@ -371,6 +347,36 @@ export class Shell {
 
     this.last = code;
     return this.last;
+  }
+
+  private async bindHereDocs(u: Unit, bodies: readonly string[], heredocAt: number, env: Map<string, string>, code: number): Promise<number> {
+    for (const cmd of u.pipe) {
+      for (const redir of cmd.redir) {
+        if (redir.mode !== "here") continue;
+
+        const body = (bodies[heredocAt++] ?? null);
+
+        if (body === null) {
+          bad(
+            "EINVAL",
+            `${redir.path.v}: missing here-document body`,
+          );
+        }
+
+        redir.body = redir.expand
+          ? await expandHereDoc(
+              requireValue(body ?? null, "src/sh/shell.ts:341"),
+              env,
+              this.s.pid,
+              code,
+              this.lastBg,
+              command => this.commandSubstitute(command),
+            )
+          : requireValue(body ?? null, "src/sh/shell.ts:348");
+      }
+    }
+
+    return heredocAt;
   }
 
   // Command, job and here-document state remain scoped to their current execution phase.
@@ -763,16 +769,16 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
 function continues(line: string): boolean {
     let quote = "", escaped = false, comment = -1;
     for (let i = 0; i < line.length; i++) {
-      const character = requireValue(line[i] ?? null, "src/sh/shell.ts:191");
+      const character = line.charAt(i);
       if (escaped) { escaped = false; continue; }
       if (character === "\\" && quote !== "'") { escaped = true; continue; }
       if (quote) { (character === quote) && (quote = ""); continue; }
       if (character === "'" || character === "\"") { quote = character; continue; }
-      if (character === "#" && (i === 0 || /\s/.test(requireValue(line[i - 1] ?? null, "src/sh/shell.ts:196")))) { comment = i; break; }
+      if (character === "#" && (i === 0 || /\s/.test(line.charAt(i - 1)))) { comment = i; break; }
     }
     if (quote === "'") return false;
     const visible = (comment >= 0 ? line.slice(0, comment) : line).trimEnd();
     let slashes = 0;
-    for (let i = visible.length - 1; i >= 0 && (visible[i] ?? null) === "\\"; i--) slashes++;
+    for (let i = visible.length - 1; i >= 0 && visible.charAt(i) === "\\"; i--) slashes++;
     return slashes % 2 === 1;
   }

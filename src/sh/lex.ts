@@ -23,7 +23,7 @@ export interface Raw { src: string; gate: Gate; bg: boolean; }
 const ops = ["2>>", "2>", "&&", "||", "<<-", "<<", ">>", "|", ";", "&", "<", ">"];
 
 const sub = (s: string, at: number, env: Map<string, string>, pid: number, last: number, bg: number): [string, number] => {
-  const c = (s[at + 1] ?? null);
+  const c = s.charAt(at + 1);
   if (c === "?") return [String(last), at + 2];
   if (c === "$") return [String(pid), at + 2];
   if (c === "!") return [bg ? String(bg) : "", at + 2];
@@ -74,14 +74,14 @@ const arithmeticNumber = (
 /** Consume one numeric or identifier alphabet without advancing past its token. */
 const arithmeticWordEnd = (src: string, start: number, alphabet: RegExp): number => {
   let at = start;
-  while (at < src.length && alphabet.test(src[at] ?? "")) at++;
+  while (at < src.length && alphabet.test(src.charAt(at))) at++;
   return at;
 };
 
 const arithmeticAtom = (src: string, start: number): [ArithmeticToken, number] => {
-  const c = requireValue(src[start] ?? null, "arithmetic token start");
+  const c = src.charAt(start);
   if (/[0-9]/.test(c)) {
-    const hex = c === "0" && /[xX]/.test(src[start + 1] ?? "");
+    const hex = c === "0" && /[xX]/.test(src.charAt(start + 1));
     const end = arithmeticWordEnd(src, start + (hex ? 2 : 0), hex ? /[0-9a-fA-F]/ : /[0-9]/);
     return [{ kind: "number", value: src.slice(start, end) }, end];
   }
@@ -98,7 +98,7 @@ const arithmeticAtom = (src: string, start: number): [ArithmeticToken, number] =
 const arithmeticTokens = (src: string): ArithmeticToken[] => {
   const tokens: ArithmeticToken[] = [];
   for (let at = 0; at < src.length;) {
-    if (/\s/.test(src[at] ?? "")) { at++; continue; }
+    if (/\s/.test(src.charAt(at))) { at++; continue; }
     const [token, end] = arithmeticAtom(src, at);
     tokens.push(token);
     at = end;
@@ -283,7 +283,7 @@ const arithmeticExpansion = (
   let depth = 0;
 
   for (let i = start + 3; i < src.length; i++) {
-    const c = requireValue(src[i] ?? null, "src/sh/lex.ts:347");
+    const c = src.charAt(i);
 
     if (c === "(") {
       depth++;
@@ -299,7 +299,7 @@ const arithmeticExpansion = (
       continue;
     }
 
-    if ((src[i + 1] ?? null) !== ")") {
+    if (src.charAt(i + 1) !== ")") {
       continue;
     }
 
@@ -323,7 +323,7 @@ const commandExpansion = (
   let quoteDepth = 0;
 
   for (let i = start + 2; i < src.length; i++) {
-    const c = requireValue(src[i] ?? null, "src/sh/lex.ts:387");
+    const c = src.charAt(i);
 
     if (c === "\\" && quote !== "'") {
       i++;
@@ -345,13 +345,13 @@ const commandExpansion = (
 
       // Quote-mode checks consume delimiters and escapes exactly once before advancing offsets.
       //@cg-expect-warning
-      if (c === "$" && (src[i + 1] ?? null) === "(") {
+      if (c === "$" && src.charAt(i + 1) === "(") {
         depth++;
         i++;
 
         // Quote-mode checks consume delimiters and escapes exactly once before advancing offsets.
         //@cg-expect-warning
-        if ((src[i + 1] ?? null) === "(") {
+        if (src.charAt(i + 1) === "(") {
           depth++;
           i++;
         }
@@ -401,10 +401,10 @@ export const expandHereDoc = async (
   let out = "";
 
   for (let i = 0; i < src.length;) {
-    const c = requireValue(src[i] ?? null, "src/sh/lex.ts:461");
+    const c = src.charAt(i);
 
     if (c === "\\") {
-      const next = (src[i + 1] ?? null);
+      const next = src.charAt(i + 1);
 
       // Quote-mode checks consume delimiters and escapes exactly once before advancing offsets.
       //@cg-expect-warning
@@ -428,8 +428,8 @@ export const expandHereDoc = async (
 
     if (
       c === "$" &&
-      (src[i + 1] ?? null) === "(" &&
-      (src[i + 2] ?? null) === "("
+      src.charAt(i + 1) === "(" &&
+      src.charAt(i + 2) === "("
     ) {
       const expanded = arithmeticExpansion(src, i, env);
       out += expanded[0];
@@ -437,7 +437,7 @@ export const expandHereDoc = async (
       continue;
     }
 
-    if (c === "$" && (src[i + 1] ?? null) === "(") {
+    if (c === "$" && src.charAt(i + 1) === "(") {
       const expanded = commandExpansion(src, i);
       out += await commandSubstitute(expanded[0]);
       i = expanded[1];
@@ -464,12 +464,12 @@ export const split = (src: string): Raw[] => {
   const out: Raw[] = [];
   let at = 0, gate: Gate = ";", q = "", esc = false;
   for (let i = 0; i < src.length; i++) {
-    const c = requireValue(src[i] ?? null, "src/sh/lex.ts:520");
+    const c = src.charAt(i);
     if (esc) { esc = false; continue; }
     if (c === "\\") { esc = true; continue; }
     if (q) { (c === q) && (q = ""); continue; }
     if (c === "'" || c === "\"") { q = c; continue; }
-    if (c === "#" && (i === 0 || /\s/.test(requireValue(src[i - 1] ?? null, "src/sh/lex.ts:525")))) {
+    if (c === "#" && (i === 0 || /\s/.test(src.charAt(i - 1)))) {
       const command = src.slice(at, i).trim();
       (command) && (out.push({ src: command, gate, bg: false }));
       const next = src.indexOf("\n", i);
@@ -504,13 +504,13 @@ export const lex = (src: string, env: Map<string, string>, pid: number, last: nu
   let i = 0;
   const push = (): void => {
     if (!hit) return;
-    if (!q && v.startsWith("~") && (v.length === 1 || (v[1] ?? null) === "/")) v = (env.get("HOME") ?? "/") + v.slice(1);
+    if (!q && v.startsWith("~") && (v.length === 1 || v.charAt(1) === "/")) v = (env.get("HOME") ?? "/") + v.slice(1);
     out.push({ v, q, op: false });
     v = ""; q = false; hit = false;
   };
 
   while (i < src.length) {
-    const c = requireValue(src[i] ?? null, "src/sh/lex.ts:563");
+    const c = src.charAt(i);
     if (/\s/.test(c)) { push(); i++; continue; }
     if (c === "#" && !hit) break;
     const index = ops.findIndex(x => src.startsWith(x, i));
@@ -518,7 +518,7 @@ export const lex = (src: string, env: Map<string, string>, pid: number, last: nu
     if (op) { push(); out.push({ v: op, q: false, op: true }); i += op.length; continue; }
     if (c === "\\") {
       ensure(!(++i >= src.length), () => bad("EINVAL", "trailing escape"));
-      v += requireValue(src[i++] ?? null, "src/sh/lex.ts:570"); hit = true; q = true; continue;
+      v += src.charAt(i++); hit = true; q = true; continue;
     }
     if (c === "'") {
       q = true; hit = true; i++;
@@ -528,16 +528,16 @@ export const lex = (src: string, env: Map<string, string>, pid: number, last: nu
     }
     if (c === "\"") {
       q = true; hit = true; i++;
-      while (i < src.length && (src[i] ?? null) !== "\"") {
+      while (i < src.length && src.charAt(i) !== "\"") {
         // Quote-mode checks consume delimiters and escapes exactly once before advancing offsets.
         //@cg-expect-warning
-        if ((src[i] ?? null) === "\\" && /["\\$]/.test(src[i + 1] ?? "")) { v += (src[i + 1] ?? null); i += 2; continue; }
+        if (src.charAt(i) === "\\" && /["\\$]/.test(src.charAt(i + 1))) { v += src.charAt(i + 1); i += 2; continue; }
         // Quote-mode checks consume delimiters and escapes exactly once before advancing offsets.
         //@cg-expect-warning
-        if ((src[i] ?? null) === "$") { const x = sub(src, i, env, pid, last, bg); v += x[0]; i = x[1]; continue; }
-        v += requireValue(src[i++] ?? null, "src/sh/lex.ts:583");
+        if (src.charAt(i) === "$") { const x = sub(src, i, env, pid, last, bg); v += x[0]; i = x[1]; continue; }
+        v += src.charAt(i++);
       }
-      ensure(!((src[i] ?? null) !== "\""), () => bad("EINVAL", "unclosed double quote"));
+      ensure(!(src.charAt(i) !== "\""), () => bad("EINVAL", "unclosed double quote"));
       i++; continue;
     }
     if (c === "$") { const x = sub(src, i, env, pid, last, bg); v += x[0]; i = x[1]; hit = true; continue; }
