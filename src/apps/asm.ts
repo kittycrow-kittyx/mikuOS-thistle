@@ -21,9 +21,15 @@ const put = (s: Sys, p: string, b: Uint8Array, mode: number): void => { s.writeb
 
 // Distinct commands deliberately implement the shared App contract.
 abstract class ToolApp extends App {
-  protected bin(s: Sys, p: string): Bin {
-    try { return codec.unpack(s.readb(p)); }
-    catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  return bad("ENOEXEC", `${p}: ${e instanceof Error ? e.message : String(e)}`); }
+  protected bin(s: Sys, p: string): Promise<Bin> {
+    return this.decode(s, p).catch(<T>(caughtValue: T): never => {
+      const message = caughtValue instanceof Error ? caughtValue.message : String(caughtValue);
+      return bad("ENOEXEC", `${p}: ${message}`);
+    });
+  }
+
+  private async decode(s: Sys, p: string): Promise<Bin> {
+    return codec.unpack(s.readb(p));
   }
 
   protected val(a: string[], i: number, k: string): string {
@@ -106,7 +112,11 @@ default: {  files.push(x); i++;  }
 }
     }
     if (!files.length) bad("EINVAL", "ld: no input objects");
-    const os = files.map(p => { const x = this.bin(s, p); return x instanceof Obj ? x : bad("ENOEXEC", `${p}: not a relocatable object`); });
+    const os: Obj[] = [];
+    for (const p of files) {
+      const x = await this.bin(s, p);
+      os.push(x instanceof Obj ? x : bad("ENOEXEC", `${p}: not a relocatable object`));
+    }
     const opt: { entry: string; names: string[]; base: number | null; mem: number | null } = {"base": null, "mem": null, entry, names: files };
     if (base !== null) { ensure(!(!Number.isSafeInteger(base) || base < 0), () => bad("EINVAL", "ld: bad image base")); opt.base = base; }
     if (mem !== null) { ensure(!(!Number.isSafeInteger(mem) || mem < 0), () => bad("EINVAL", "ld: bad memory size")); opt.mem = mem; }
@@ -146,7 +156,7 @@ export class DisApp extends ToolApp {
     const a = [...av], f = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/asm.ts:110").slice(1) : "d";
     if (!a.length) bad("EINVAL", `${this.name}: no input files`);
     for (const p of a) {
-      const x = this.bin(s, p); await s.out(`\n${p}: ${x.machine} ${x.kind === "obj" ? "relocatable object" : "executable"}\n`);
+      const x = await this.bin(s, p); await s.out(`\n${p}: ${x.machine} ${x.kind === "obj" ? "relocatable object" : "executable"}\n`);
       if (f.includes("h")) for (const q of x.sec) await s.out(`${q.name.padEnd(16)} ${q.flg.padEnd(3)} addr ${hex(q.addr)} off 00000000 size ${hex(q.size)} align ${q.align}\n`);
       if (f.includes("d")) for (const q of x.sec.filter(v => v.flg.includes("x"))) await this.dis(s, x, q);
       if (f.includes("r") && x instanceof Obj) for (const r of x.rel) await s.out(`${r.sec}+0x${hex(r.off)} ${r.type.padEnd(6)} ${r.sym}${r.add ? r.add > 0 ? `+${r.add}` : r.add : ""}\n`);
@@ -181,7 +191,8 @@ export class NmApp extends ToolApp {
     const a = [...av], fl = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/asm.ts:143").slice(1) : "";
     for (const p of a) {
       if (a.length > 1) await s.out(`\n${p}:\n`);
-      let q = this.bin(s, p).sym.filter(x => !fl.includes("g") || x.bind !== "local").filter(x => !fl.includes("u") || !x.sec);
+      const image = await this.bin(s, p);
+      let q = image.sym.filter(x => !fl.includes("g") || x.bind !== "local").filter(x => !fl.includes("u") || !x.sec);
       q = q.sort(fl.includes("n") ? (a, b) => a.val - b.val || a.name.localeCompare(b.name) : (a, b) => a.name.localeCompare(b.name));
       for (const x of q) await s.out(`${x.sec ? hex(x.val) : "        "} ${this.kind(x)} ${x.name}\n`);
     }
@@ -202,7 +213,7 @@ export class SizeApp extends ToolApp {
   override async run(s: Sys, a: string[]): Promise<number> {
     if (!a.length) return 1; await s.out("   text    data     bss     dec     hex filename\n");
     for (const p of a) {
-      const x = this.bin(s, p), text = x.sec.filter(q => !q.flg.includes("w")).reduce((n, q) => n + q.size, 0), data = x.sec.filter(q => q.flg.includes("w") && q.data.length).reduce((n, q) => n + q.data.length, 0), bss = x.sec.reduce((n, q) => n + q.size - q.data.length, 0), n = text + data + bss;
+      const x = await this.bin(s, p), text = x.sec.filter(q => !q.flg.includes("w")).reduce((n, q) => n + q.size, 0), data = x.sec.filter(q => q.flg.includes("w") && q.data.length).reduce((n, q) => n + q.data.length, 0), bss = x.sec.reduce((n, q) => n + q.size - q.data.length, 0), n = text + data + bss;
       await s.out(`${String(text).padStart(7)} ${String(data).padStart(7)} ${String(bss).padStart(7)} ${String(n).padStart(7)} ${n.toString(16).padStart(7)} ${p}\n`);
     }
     return 0;

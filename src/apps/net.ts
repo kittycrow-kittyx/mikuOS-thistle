@@ -52,25 +52,36 @@ export class Wget extends App {
     for (const url of o.urls) {
       const path = o.out ?? fname(url);
       if (!o.spider && path !== "-" && o.nc && exists(s, path)) { await s.err(`${path}: EEXIST: file exists\n`); code = 1; continue; }
-      try {
-        if (!o.quiet) await s.err(`${o.spider ? "Spider" : "Request"}: ${url}\n`);
-        const q = { body: o.body, url, method: o.spider ? "HEAD" : o.method, hdr: o.hdr, redirs: o.redirs, timeout: o.timeout, max: o.max };
-        const r = await s.net(q);
-        if (o.server) {
-          await s.err(`  HTTP ${r.status} ${r.text}\n`);
-          for (const [k, v] of Object.entries(r.hdr)) await s.err(`  ${k}: ${v}\n`);
-        }
-        if (r.status < 200 || r.status >= 400) { await s.err(`${url}: server returned ${r.status} ${r.text}\n`); code = 8; continue; }
-        if (o.spider) { (!o.quiet) && (await s.err(`Remote file exists (${r.status}).\n`)); continue; }
-        if (path === "-") await s.out(r.body);
-        else s.writeb(path, r.body);
-        if (!o.quiet) await s.err(`${path === "-" ? "stdout" : path} saved [${size(r.body.length)}]\n`);
-      } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
+      const result = await this.download(s, o, url, path).catch(async <T>(caughtValue: T): Promise<number> => {
+        const e = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
         await s.err(`wget: ${msg(e)}\n`);
-        code = e instanceof KErr && ["EACCES", "EEXIST", "ENOSPC", "EROFS"].includes(e.code) ? 3 : 4;
-      }
+        return e instanceof KErr && ["EACCES", "EEXIST", "ENOSPC", "EROFS"].includes(e.code) ? 3 : 4;
+      });
+      if (result !== 0) code = result;
     }
     return code;
+  }
+
+  private async download(s: Sys, o: WOpt, url: string, path: string): Promise<number> {
+    if (!o.quiet) await s.err(`${o.spider ? "Spider" : "Request"}: ${url}\n`);
+    const q = { body: o.body, url, method: o.spider ? "HEAD" : o.method, hdr: o.hdr, redirs: o.redirs, timeout: o.timeout, max: o.max };
+    const r = await s.net(q);
+    if (o.server) {
+      await s.err(`  HTTP ${r.status} ${r.text}\n`);
+      for (const [k, v] of Object.entries(r.hdr)) await s.err(`  ${k}: ${v}\n`);
+    }
+    if (r.status < 200 || r.status >= 400) {
+      await s.err(`${url}: server returned ${r.status} ${r.text}\n`);
+      return 8;
+    }
+    if (o.spider) {
+      (!o.quiet) && (await s.err(`Remote file exists (${r.status}).\n`));
+      return 0;
+    }
+    if (path === "-") await s.out(r.body);
+    else s.writeb(path, r.body);
+    if (!o.quiet) await s.err(`${path === "-" ? "stdout" : path} saved [${size(r.body.length)}]\n`);
+    return 0;
   }
 
   // HTTP outcome and destination handling preserve command-specific exit status.

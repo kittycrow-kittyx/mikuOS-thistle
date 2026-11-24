@@ -144,7 +144,7 @@ export class Shell {
 
   // Command, job and here-document state remain scoped to their current execution phase.
   //@cg-expect-warning
-  private recordHistory(src:string):void{this.ensureUserState();if(!this.prefs.history||(this.prefs.historyIgnoreSpace&&/^[ \t]/.test(src)))return;const entry=src.replace(/\r\n/g,"\n").replace(/\r/g,"\n").replace(/\n+$/,"");if(!entry.trim()||this.prefs.historyIgnorePatterns.some(p=>globMatches(p,entry)))return;if((this.hist.at(-1) ?? null)===entry)return;if(this.prefs.historyDeduplicate){for(let i=this.hist.length-1;i>=0;i--)if((this.hist[i] ?? null)===entry)this.hist.splice(i,1);}this.hist.push(entry);if(this.hist.length>this.prefs.historySize)this.hist.splice(0,this.hist.length-this.prefs.historySize);this.saveHistory();}
+  private async recordHistory(src:string):Promise<void>{this.ensureUserState();if(!this.prefs.history||(this.prefs.historyIgnoreSpace&&/^[ \t]/.test(src)))return;const entry=src.replace(/\r\n/g,"\n").replace(/\r/g,"\n").replace(/\n+$/,"");if(!entry.trim()||this.prefs.historyIgnorePatterns.some(p=>globMatches(p,entry)))return;if((this.hist.at(-1) ?? null)===entry)return;if(this.prefs.historyDeduplicate){for(let i=this.hist.length-1;i>=0;i--)if((this.hist[i] ?? null)===entry)this.hist.splice(i,1);}this.hist.push(entry);if(this.hist.length>this.prefs.historySize)this.hist.splice(0,this.hist.length-this.prefs.historySize);this.saveHistory();}
   historyMatches(prefix:string):string[]{this.ensureUserState();return this.prefs.autocomplete?findHistoryMatches(this.hist,prefix,this.prefs.autocompleteCaseSensitive):[];}
   clearHistory():void{this.hist.splice(0,this.hist.length);this.saveHistory();}
 
@@ -277,20 +277,13 @@ export class Shell {
   ): Promise<number> {
     if (this.exitRequested || !src.trim()) return this.last;
     this.ensureUserState();
-    if (save) {
-      try {
-        this.recordHistory(src);
-      } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-        // History is auxiliary state. A broken or unwritable history path
-        // must never stop the command the user actually submitted.
-        // Command, job and here-document state remain scoped to their current execution phase.
-        //@cg-expect-warning
-        if (!this.historyWarning) {
-          this.historyWarning = true;
-          await this.s.err(`thsh: history not saved (${msg(error)}); commands will still run\n`);
-        }
-      }
-    }
+    if (save) await this.recordHistory(src).catch(async <T>(caughtValue: T): Promise<void> => {
+      // Auxiliary history must not prevent execution of the submitted command.
+      if (this.historyWarning) return;
+      this.historyWarning = true;
+      const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
+      await this.s.err(`thsh: history not saved (${msg(error)}); commands will still run\n`);
+    });
 
     let commandSource = src;
     let bodies = heredocBodies;
@@ -310,63 +303,67 @@ export class Shell {
       }
     }
 
-    try {
-      let code = this.last;
-      let heredocAt = 0;
-
-      for (const r of split(commandSource)) {
-        const env = this.s.env() as Map<string, string>;
-        const u = parse(
-          lex(r.src, env, this.s.pid, code, this.lastBg),
-        )[0] ?? bad("EINVAL", "empty command");
-
-        u.gate = r.gate;
-        u.bg = r.bg;
-        u.src = r.src;
-
-        for (const cmd of u.pipe) {
-          for (const redir of cmd.redir) {
-            if (redir.mode !== "here") continue;
-
-            const body = (bodies[heredocAt++] ?? null);
-
-            if (body === null) {
-              bad(
-                "EINVAL",
-                `${redir.path.v}: missing here-document body`,
-              );
-            }
-
-            redir.body = redir.expand
-              ? await expandHereDoc(
-                  requireValue(body ?? null, "src/sh/shell.ts:341"),
-                  env,
-                  this.s.pid,
-                  code,
-                  this.lastBg,
-                  command => this.commandSubstitute(command),
-                )
-              : requireValue(body ?? null, "src/sh/shell.ts:348");
-          }
-        }
-
-        if (r.gate === "&&" && code !== 0) continue;
-        if (r.gate === "||" && code === 0) continue;
-
-        code = await this.unit(u);
-        this.last = code;
-        if (this.exitRequested) return code;
-      }
-
-      if (heredocAt !== bodies.length) {
-        bad("EINVAL", "unused here-document body");
-      }
-
-      this.last = code;
-    } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      await this.s.err(`thsh: ${msg(e)}\n`);
+    return this.runCommands(commandSource, bodies).catch(async <T>(caughtValue: T): Promise<number> => {
+      const error = caughtValue instanceof Error ? caughtValue : new Error(String(caughtValue));
+      await this.s.err(`thsh: ${msg(error)}\n`);
       this.last = 2;
+      return this.last;
+    });
+  }
+
+  private async runCommands(commandSource: string, bodies: readonly string[]): Promise<number> {
+    let code = this.last;
+    let heredocAt = 0;
+
+    for (const r of split(commandSource)) {
+      const env = this.s.env() as Map<string, string>;
+      const u = parse(
+        lex(r.src, env, this.s.pid, code, this.lastBg),
+      )[0] ?? bad("EINVAL", "empty command");
+
+      u.gate = r.gate;
+      u.bg = r.bg;
+      u.src = r.src;
+
+      for (const cmd of u.pipe) {
+        for (const redir of cmd.redir) {
+          if (redir.mode !== "here") continue;
+
+          const body = (bodies[heredocAt++] ?? null);
+
+          if (body === null) {
+            bad(
+              "EINVAL",
+              `${redir.path.v}: missing here-document body`,
+            );
+          }
+
+          redir.body = redir.expand
+            ? await expandHereDoc(
+                requireValue(body ?? null, "src/sh/shell.ts:341"),
+                env,
+                this.s.pid,
+                code,
+                this.lastBg,
+                command => this.commandSubstitute(command),
+              )
+            : requireValue(body ?? null, "src/sh/shell.ts:348");
+        }
+      }
+
+      if (r.gate === "&&" && code !== 0) continue;
+      if (r.gate === "||" && code === 0) continue;
+
+      code = await this.unit(u);
+      this.last = code;
+      if (this.exitRequested) return code;
     }
+
+    if (heredocAt !== bodies.length) {
+      bad("EINVAL", "unused here-document body");
+    }
+
+    this.last = code;
     return this.last;
   }
 
