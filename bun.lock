@@ -9,7 +9,7 @@
         "@xterm/xterm": "^6.0.0",
       },
       "devDependencies": {
-        "@kitty-crow/code-guards": "git+https://github.com/kitty-crow/code-guards.git#d1ce06c6b4a71e5f94ca97ba4b0f6780408aa3f6",
+        "@kitty-crow/code-guards": "git+https://github.com/kitty-crow/code-guards.git#a790861394c7312ff512ec9b03346e1fc8268188",
         "@types/bun": "^1.3.14",
         "@types/node": "^26.1.1",
         "assemblyscript": "0.28.19",
@@ -134,7 +134,7 @@
 
     "@img/sharp-win32-x64": ["@img/sharp-win32-x64@0.35.5", "", { "os": "win32", "cpu": "x64" }, "sha512-x76eH0vEiHlcMQu8Y8IenntaACtddpT6W0wmXtWrnKcnKI7ME5DdgqhAD6SEWOEl1v2zDvkZDhFA9KnURwpfqg=="],
 
-    "@kitty-crow/code-guards": ["@kitty-crow/code-guards@github:kitty-crow/code-guards#d1ce06c", { "dependencies": { "@huggingface/transformers": "4.3.2", "typescript": "^5.8.3" }, "hasInstallScript": true, "bin": { "code-guards": "./dist/src/cli.js" } }, "kitty-crow-code-guards-d1ce06c", "sha512-6v9RIjc/H6CShBceM1ZqDeSdmNBgykbmkJcfL9xZm6mxr2sncn9bs80QXqQKlQURFd9cHidnPS0Vi0JGsQ3rsg=="],
+    "@kitty-crow/code-guards": ["@kitty-crow/code-guards@github:kitty-crow/code-guards#a790861", { "dependencies": { "@huggingface/transformers": "4.3.2", "typescript": "^5.8.3" }, "hasInstallScript": true, "bin": { "code-guards": "./dist/src/cli.js" } }, "kitty-crow-code-guards-a790861", "sha512-WgPmB0gdcrAx8TNuGVmr3OqQ0eMsTsuGiL96DfZW0qGRb/vnH18UC5QzMA4TAoIwDDwlvt5x/Xd5DE34FX7dSg=="],
 
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
 
