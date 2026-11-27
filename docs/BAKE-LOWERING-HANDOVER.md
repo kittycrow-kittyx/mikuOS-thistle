@@ -4,9 +4,9 @@ Updated: 27 November 2026. This is a continuation checkpoint, not a completion c
 
 ## Objective and acceptance
 
-Lower the complete canonical mikuOS boot graph with Bake: one Thistle kernel implementation, the existing mikuOS shell and applications, and the custom `.thistle.base` userspace. Acceptance requires zero errors, zero warnings and actual emitted files. A kernel-only pass does not satisfy whole-system acceptance. Preserve real boot to interactive input, `which dd` resolving `/bin/dd`, and actual dd execution.
+Lower the complete canonical mikuOS boot graph with Bake: one Thistle kernel implementation, the existing mikuOS shell and applications, and the custom `.thistle.base` userspace. Acceptance requires zero errors, zero warnings and actual emitted files. Preserve real boot to interactive input, `which dd` resolving `/bin/dd`, and actual dd execution.
 
-Transpilation to modular WAT and compilation to WASM are later milestones. Do not create a second source tree, substitute kernel, reduced rescue-only userspace, diagnostic suppression, or a permissive acceptance configuration to obtain a green result. Code Guards remains strict. No performance benchmarks are required.
+Transpilation to modular WAT and compilation to WASM are later milestones. The input is `src/main/boot.ts`, including all installed commands and the root image. Code Guards remains strict. No performance benchmarks are required.
 
 ## Repository boundaries
 
@@ -74,3 +74,9 @@ Publish every substantive batch through the GitHub connector with an expected-he
 The next agent should first read the latest revision of this document and the current PR heads. Resume the remaining work instead of repeating completed migrations. The first source batch is committed to Thistle at `2da874937d18b855df98ec51f3afd0f1bb5d3126`. The integration pin in this checkpoint selects it. The full report is now **27 errors, 734 warnings, 0 emitted files**, down from 30/967. All 69 mikuOS tests and the actual CLI boot/dd test passed locally against that exact kernel. Kernel tests increased to 96 and all passed; type checking and local deterministic guards passed. Full kernel CI is running in runs 46029251461 and 46029251525.
 
 Changes: memory-owned backing/device transports replace WeakMap registries; the host write closure becomes a named method; Linux syscall operands are captured from the native hart with `thistleHartGetX` instead of 227 repeated nullable register reads. Two new tests prove byte/device transport isolation between instances. A trial that broadened generic checked-value helpers to accept undefined was rejected by strict guards and discarded before publication. Do not reinstate that trial.
+
+## Register and scalar reads
+
+Kernel `bd0d8faec18b38a999762904d9ee6760e690c726` retains the public Thistle32 and Thistle64 typed register banks. A DataView reads each operand from those same bytes, using the host register byte order. Instruction fetch and guest memory use the guest byte order. Reads crossing sparse page boundaries still zero-fill absent bytes. The regression covers sign extension, crossing an absent page, signed zero, and the address limit.
+
+At this pin the full boot graph reports **27 errors, 530 warnings, 0 emitted files**. The 69 hosted tests passed. The CLI reached input, resolved `/bin/dd` and copied the test bytes. Of the 530 warnings, 282 come from the pinned ThistleASM source; six of the 27 errors are its catch bindings. The installed assembler and linker directly import that source.
