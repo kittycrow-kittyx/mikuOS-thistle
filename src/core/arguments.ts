@@ -10,3 +10,16 @@ export function takeArgument(arguments_: string[]): string | null {
   arguments_.shift();
   return argument;
 }
+
+type ArgumentPrefix = [string | null, string | null, string | null];
+
+/** Read the bounded operand prefix shared by unary and binary command forms. */
+export function argumentPrefix(arguments_: readonly string[]): ArgumentPrefix {
+  const prefix: ArgumentPrefix = [null, null, null];
+  let position = 0;
+  for (const argument of arguments_) {
+    if (position === 3) break;
+    prefix[position++] = argument;
+  }
+  return prefix;
+}

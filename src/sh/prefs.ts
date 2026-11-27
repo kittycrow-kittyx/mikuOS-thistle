@@ -74,6 +74,12 @@ export const DEFAULT_PREFS: Readonly<ShellPrefs> = {
 };
 
 export const PREF_KEYS = Object.freeze(Object.keys(DEFAULT_PREFS) as Array<keyof ShellPrefs>);
+
+/** Resolve an interactive preference name against the complete supported schema. */
+export const preferenceKey = (name: string | null): keyof ShellPrefs | null => {
+  for (const key of PREF_KEYS) if (key === name) return key;
+  return null;
+};
 export const defaultPrefs = (): ShellPrefs => ({
   ...DEFAULT_PREFS,
   historyIgnorePatterns: [...DEFAULT_PREFS.historyIgnorePatterns],
@@ -255,8 +261,11 @@ const valueText = <T>(value: T): string =>
       ? JSON.stringify(value)
       : String(value);
 
+export const preferenceLine = (prefs: ShellPrefs, key: keyof ShellPrefs): string =>
+  `${String(key)}=${valueText(prefs[key])}`;
+
 export const prefsText = (prefs: ShellPrefs): string =>
-  PREF_KEYS.map(key => `${String(key)}=${valueText(prefs[key])}`).join("\n") + "\n";
+  PREF_KEYS.map(key => preferenceLine(prefs, key)).join("\n") + "\n";
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

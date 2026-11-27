@@ -1,4 +1,4 @@
-import { firstArgument, takeArgument } from "../core/arguments.js";
+import { argumentPrefix, firstArgument, takeArgument } from "../core/arguments.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
@@ -248,15 +248,8 @@ export class Thsh extends App {
 
 const truth = (s: Sys, a: string[]): boolean => {
   if (!a.length) return false;
-  // test consumes at most three operands. Every slot has a defined nullable
-  // value before dispatch, rather than repeatedly probing an unchecked array.
-  const operands: [string | null, string | null, string | null] = [null, null, null];
-  let position = 0;
-  for (const argument of a) {
-    if (position === 3) break;
-    operands[position++] = argument;
-  }
-  const [first, second, third] = operands;
+  // Unary and binary forms share a bounded, explicitly nullable operand prefix.
+  const [first, second, third] = argumentPrefix(a);
   if (first === "!") return !truth(s, a.slice(1));
   if (a.length === 1) return !!first;
   if (first === "-e") { try { s.stat(requireValue(second, "src/apps/sys.ts:249")); return true; } catch { return false; } }

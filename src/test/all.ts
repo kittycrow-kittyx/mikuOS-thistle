@@ -18,6 +18,7 @@ import { boot } from "../main/host-boot.js";
 import { ROOT_IMAGE_VERSION } from "../main/image.js";
 import { FnApp } from "../../thistle/src/apps/base.js";
 import { Rm } from "../apps/fs.js";
+import { durationMillis } from "../apps/proc.js";
 import type { Ch, Os } from "../main/boot.js";
 import { KErr } from "../../thistle/src/core/err.js";
 import { dec, enc } from "../../thistle/src/io/stream.js";
@@ -173,6 +174,16 @@ test("hex key bindings retain raw sequence validation", () => {
   assert.deepEqual(keySequences("hex:1"), []);
   assert.deepEqual(keySequences("hex:"), []);
   assert.deepEqual(keySequences("not-a-key"), []);
+});
+
+test("sleep duration parsing preserves decimal units and rejects malformed input", () => {
+  for (const [value, milliseconds] of [
+    ["0", 0], ["1", 1000], ["1ms", 1], ["1.5s", 1500],
+    ["2m", 120000], ["0.5h", 1800000],
+  ] as const) assert.equal(durationMillis(value), milliseconds, value);
+  for (const value of [null, "", ".5", "-1", "1e3", "1d", "ms"]) {
+    assert.throws(() => durationMillis(value), { code: "EINVAL" });
+  }
 });
 const show = <T>(value: T): string => JSON.stringify(value, <V>(_key: string, item: V) => typeof item === "bigint" ? `${item}n` : item) ?? String(value);
 
@@ -1376,6 +1387,26 @@ test("text tool pipeline", async () => {
   const x = await r.run("printf 'pear\\napple\\npear\\nplum\\n' | sort | uniq -c | grep -E '2 pear'");
   assert.equal(x.code, 0);
   assert.ok(x.out.includes("2 pear"));
+});
+
+test("text operands preserve missing, empty and repeated values", async () => {
+  const rig = await Rig.create();
+  const cases: Array<[string, string]> = [
+    ["printf '%s:%s:%c' first '' Q", "first::Q"],
+    ["printf '%s:%s' first", "first:"],
+    ["printf 'a\\na\\n\\n\\nb\\na\\n' | uniq -c", "      2 a\n      2 \n      1 b\n      1 a\n"],
+    ["printf 'b\\na\\nb\\n' | sort -u", "a\nb\n"],
+    ["seq 3", "1\n2\n3\n"],
+    ["seq 3 -1 1", "3\n2\n1\n"],
+    ["printf abba | tr ab xy", "xyyx"],
+    ["printf 'a:a\\na:b\\n' | sed -n 's/a/x/gp'", "x:x\nx:b\n"],
+    ["printf 'one\\ntwo\\nthree\\n' | tail -n 2", "two\nthree\n"],
+  ];
+  for (const [command, output] of cases) {
+    const result = await rig.run(command);
+    assert.equal(result.code, 0, command);
+    assert.equal(result.out, output, command);
+  }
 });
 
 test("background jobs and signals", async () => {

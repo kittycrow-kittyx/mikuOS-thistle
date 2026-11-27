@@ -1,5 +1,5 @@
 import { Stream } from "../../thistle/src/io/stream.js";
-import { firstArgument } from "../core/arguments.js";
+import { argumentPrefix, firstArgument } from "../core/arguments.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import type { TerminalState } from "../../thistle/src/io/stream.js";
 import { withValue } from "../../thistle/src/core/err.js";
@@ -13,7 +13,7 @@ import type { Out } from "../../thistle/src/io/stream.js";
 import { expandHereDoc, lex, parse, split } from "./lex.js";
 import type { Cmd, Tok, Unit, Word } from "./lex.js";
 import { decodeHistory, encodeHistory, globMatches, historyMatches as findHistoryMatches } from "./history.js";
-import { PREF_KEYS, defaultPrefs, parsePrefs, prefsText, updatePrefsText, type ShellPrefs } from "./prefs.js";
+import { defaultPrefs, parsePrefs, preferenceKey, preferenceLine, prefsText, updatePrefsText, type ShellPrefs } from "./prefs.js";
 
 interface Job {
   id: number;
@@ -675,22 +675,60 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
     finally { this.s.reap(process.pid); }
   }
 
-  private async historyBuiltin(a: string[]): Promise<number> {
-        if ((firstArgument(a)) === "-c") { await this.clearHistory(); return 0; }
-        if ((firstArgument(a)) === "-w") { await this.saveHistory(); return 0; }
-        if ((firstArgument(a)) === "-d") { const n=Number.parseInt(a[1]??"",10); ensure(!(!Number.isSafeInteger(n)||n<1||n>this.hist.length), () => bad("EINVAL","history index")); this.hist.splice(n-1,1); await this.saveHistory(); return 0; }
-        const count=(firstArgument(a))===null?this.hist.length:Number.parseInt((requireValue(firstArgument(a), "src/sh/shell.ts:637")),10); if(!Number.isSafeInteger(count)||count<0) bad("EINVAL","history count");
-        const start=Math.max(0,this.hist.length-count); for(let i=start;i<this.hist.length;i++) await this.s.out(`${String(i+1).padStart(5)}  ${requireValue(this.hist[i] ?? null, "src/sh/shell.ts:625").replace(/\n/g,"\\n")}\n`); return 0;
-
+  private async historyBuiltin(args: string[]): Promise<number> {
+    const [action, operand] = argumentPrefix(args);
+    if (action === "-c") { await this.clearHistory(); return 0; }
+    if (action === "-w") { await this.saveHistory(); return 0; }
+    if (action === "-d") {
+      const index = Number.parseInt(operand ?? "", 10);
+      ensure(Number.isSafeInteger(index) && index >= 1 && index <= this.hist.length,
+        () => bad("EINVAL", "history index"));
+      this.hist.splice(index - 1, 1);
+      await this.saveHistory();
+      return 0;
+    }
+    const count = action === null ? this.hist.length : Number.parseInt(action, 10);
+    if (!Number.isSafeInteger(count) || count < 0) bad("EINVAL", "history count");
+    const start = Math.max(0, this.hist.length - count);
+    for (let index = start; index < this.hist.length; index++) {
+      const entry = requireValue(this.hist[index] ?? null, "history entry");
+      await this.s.out(`${String(index + 1).padStart(5)}  ${entry.replace(/\n/g, "\\n")}\n`);
+    }
+    return 0;
   }
 
-  private async preferencesBuiltin(a: string[]): Promise<number> {
-        if (!a.length) { await this.s.out(prefsText(this.prefs)); return 0; }
-        if ((firstArgument(a)) === "reload") { const warnings=this.reloadPreferences(); for(const w of warnings) await this.s.err(`prefs: ${w}\n`); return warnings.length?1:0; }
-        if ((firstArgument(a)) === "get") { const key=(a[1] ?? null) as keyof ShellPrefs|null; ensure(!(!key||!PREF_KEYS.includes(key)), () => bad("EINVAL","prefs key")); const value=this.prefs[requireValue(key, "src/sh/shell.ts:630")]; await this.s.out(`${requireValue(key, "src/sh/shell.ts:630")}=${Array.isArray(value)?JSON.stringify(value.join(",")):typeof value==="string"?JSON.stringify(value):String(value)}\n`); return 0; }
-        if ((firstArgument(a)) === "set") { ensure(!(this.s.uid!==0), () => bad("EPERM","prefs set")); const key=(a[1] ?? null) as keyof ShellPrefs|null,value=a.slice(2).join(" "); ensure(!(!key||!PREF_KEYS.includes(key)||!value), () => bad("EINVAL","usage: prefs set key value")); const current=this.maybeRead("/opt/prefs")??""; this.s.write("/opt/prefs",updatePrefsText(current,requireValue(key, "src/sh/shell.ts:631"),value),false,0o644);this.s.chmod("/opt/prefs",0o644);const warnings=this.reloadPreferences();for(const w of warnings)await this.s.err(`prefs: ${w}\n`);return warnings.length?1:0; }
-        return bad("EINVAL","usage: prefs [get key|set key value|reload]");
+  private async preferencesBuiltin(args: string[]): Promise<number> {
+    const [action, name] = argumentPrefix(args);
+    switch (action) {
+      case null: await this.s.out(prefsText(this.prefs)); return 0;
+      case "reload": return this.reportPreferenceWarnings();
+      case "get": return this.printPreference(name);
+      case "set": return this.savePreference(name, args.slice(2).join(" "));
+      default: return bad("EINVAL", "usage: prefs [get key|set key value|reload]");
+    }
+  }
 
+  private async printPreference(name: string | null): Promise<number> {
+    const key = preferenceKey(name);
+    if (key === null) return bad("EINVAL", "prefs key");
+    await this.s.out(preferenceLine(this.prefs, key) + "\n");
+    return 0;
+  }
+
+  private async savePreference(name: string | null, value: string): Promise<number> {
+    ensure(this.s.uid === 0, () => bad("EPERM", "prefs set"));
+    const key = preferenceKey(name);
+    if (key === null || !value) return bad("EINVAL", "usage: prefs set key value");
+    const previous = this.maybeRead("/opt/prefs");
+    this.s.write("/opt/prefs", updatePrefsText(previous ?? "", key, value), false, 0o644);
+    this.s.chmod("/opt/prefs", 0o644);
+    return this.reportPreferenceWarnings();
+  }
+
+  private async reportPreferenceWarnings(): Promise<number> {
+    const warnings = this.reloadPreferences();
+    for (const warning of warnings) await this.s.err(`prefs: ${warning}\n`);
+    return warnings.length ? 1 : 0;
   }
 
   private async showJobs(): Promise<number> {
