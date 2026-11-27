@@ -10,8 +10,7 @@
     {
       "repository": "kittycrow-kittyx/thistle",
       "path": "thistle",
-      "commit": "5338d14b4ecb974ce56c4d13900ba34962a32093",
-      "tag": "v2.2.3"
+      "commit": "d8dce8e05cbe902eebaeb84200f812b0e008fa51"
     }
   ]
 }

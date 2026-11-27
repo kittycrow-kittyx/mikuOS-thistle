@@ -24,7 +24,7 @@ export class Kill extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     let sig: Sig = 15;
     switch (true) {
-case !!((withValue((a[0] ?? null) ?? null, value => value.startsWith("-S")) ?? null)): {  const x = requireValue(a.shift() ?? null, "src/apps/proc.ts:24").slice(1); sig = x === "SIGKILL" ? 9 : x === "SIGINT" ? 2 : x === "SIGPIPE" ? 13 : x === "SIGHUP" ? 1 : 15;
+case !!((withValue((a[0] ?? null), value => value.startsWith("-S")))): {  const x = requireValue(a.shift() ?? null, "src/apps/proc.ts:24").slice(1); sig = x === "SIGKILL" ? 9 : x === "SIGINT" ? 2 : x === "SIGPIPE" ? 13 : x === "SIGHUP" ? 1 : 15;
 break; }
 case !!(/^-(1|2|9|13|15)$/.test(a[0] ?? "")): { sig = Number(requireValue(a.shift() ?? null, "src/apps/proc.ts:25").slice(1)) as Sig;
 break; }

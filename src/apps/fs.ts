@@ -77,7 +77,7 @@ export class Ls extends App {
 
 async function printCat(s: Sys, text: string, line: number | null): Promise<number | null> {
   if (line === null) { await s.out(text); return null; }
-  const lines = withValue(text.match(/.*(?:\n|$)/g) ?? null, value => value.filter(Boolean)) ?? [];
+  const lines = withValue(text.match(/.*(?:\n|$)/g), value => value.filter(Boolean)) ?? [];
   let next = line;
   for (const value of lines) await s.out(`${String(next++).padStart(6)}\t${value}`);
   return next;
@@ -269,7 +269,7 @@ export class Chown extends App {
 export class Find extends App {
   constructor() { super("find", "Walk a directory tree.", "find [path] [-name glob] [-type f|d|l]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
-    const root = (a[0] ?? null) && !requireValue((a[0] ?? null) ?? null, "src/apps/fs.ts:201").startsWith("-") ? requireValue(a.shift() ?? null, "src/apps/fs.ts:199") : ".";
+    const root = (a[0] ?? null) && !requireValue((a[0] ?? null), "src/apps/fs.ts:201").startsWith("-") ? requireValue(a.shift() ?? null, "src/apps/fs.ts:199") : ".";
     const ni = a.indexOf("-name"), ti = a.indexOf("-type");
     const rx = ni >= 0 ? globRx(a[ni + 1] ?? "") : null;
     const ty = ti >= 0 ? (a[ti + 1] ?? null) : null;

@@ -91,7 +91,7 @@ export class Grep extends App {
   // App.run is the required polymorphic command entry point, including stateless commands.
   //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
-    const f = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/text.ts:79") : "";
+    const f = (withValue((a[0] ?? null), value => value.startsWith("-"))) ? requireValue(a.shift() ?? null, "src/apps/text.ts:79") : "";
     const pat = a.shift() ?? bad("EINVAL", "grep: missing pattern");
     let rx: RegExp = /(?:)/;
     try { rx = new RegExp(f.includes("E") ? pat : pat.replace(/[+?(){}|]/g, "\\$&"), f.includes("i") ? "i" : ""); }
@@ -129,7 +129,7 @@ export class Sort extends App {
 export class Uniq extends App {
   constructor() { super("uniq", "Filter adjacent duplicate lines.", "uniq [-cd] [file]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
-    const f = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/text.ts:117") : "";
+    const f = (withValue((a[0] ?? null), value => value.startsWith("-"))) ? requireValue(a.shift() ?? null, "src/apps/text.ts:117") : "";
     const inputs = await src(s, a), first = inputs[0] ?? null;
     const q = lines(first === null ? "" : first[1]);
     for (let i = 0; i < q.length;) {
@@ -197,11 +197,11 @@ export class Sed extends App {
     const ex = (a.shift() ?? null); if (ex === null || !ex.startsWith("s")) return bad("EINVAL", "sed: substitution required");
     const d = ex.charAt(1); if (!d) return bad("EINVAL", "sed expression");
     const p = ex.slice(2).split(d); if (p.length < 3) bad("EINVAL", "sed expression");
-    let rx: RegExp = /(?:)/; try { rx = new RegExp(requireValue(p[0] ?? null, "src/apps/text.ts:179"), (withValue((p[2] ?? null) ?? null, value => value.includes("g")) ?? null) ? "g" : ""); } catch { return bad("EINVAL", "sed pattern"); }
+    let rx: RegExp = /(?:)/; try { rx = new RegExp(requireValue(p[0] ?? null, "src/apps/text.ts:179"), (withValue((p[2] ?? null), value => value.includes("g"))) ? "g" : ""); } catch { return bad("EINVAL", "sed pattern"); }
     for (const [, x] of await src(s, a)) for (const line of lines(x)) {
       const hit = rx.test(line); rx.lastIndex = 0;
       const z = line.replace(rx, requireValue(p[1] ?? null, "src/apps/text.ts:182").replace(/&/g, "$&"));
-      if (!quiet || (hit && (withValue((p[2] ?? null) ?? null, value => value.includes("p")) ?? null))) await s.out(z + "\n");
+      if (!quiet || (hit && (withValue((p[2] ?? null), value => value.includes("p"))))) await s.out(z + "\n");
     }
     return 0;
   }
@@ -253,7 +253,7 @@ const b64d = (x: string): Uint8Array => {
 
 export class Base64 extends App {
   constructor() { super("base64", "Encode or decode base64 data.", "base64 [-d] [file]"); }
-  override async run(s: Sys, a: string[]): Promise<number> { const d = (a[0] ?? null) === "-d"; if (d) a.shift(); const b = (a[0] ?? null) ? s.readb((requireValue(a[0] ?? null, "src/apps/text.ts:237") ?? null)) : await s.inb(); await s.out(d ? b64d(dec(b)) : b64e(b) + "\n"); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { const d = (a[0] ?? null) === "-d"; if (d) a.shift(); const b = (a[0] ?? null) ? s.readb((requireValue(a[0] ?? null, "src/apps/text.ts:237"))) : await s.inb(); await s.out(d ? b64d(dec(b)) : b64e(b) + "\n"); return 0; }
 }
 
 export class Strings extends App {

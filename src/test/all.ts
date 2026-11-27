@@ -1,5 +1,8 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
+import { GUEST_DATA, runGuestSyscalls } from "./rv64-syscalls.js";
+import { thistleProcessIdentity } from "../../thistle/src/native/kernel.js";
+import { thistleVfsFileSize } from "../../thistle/src/native/vfs.js";
 import { BootRenderer } from "../boot/display.js";
 import { Elf, ElfErr, isElf } from "../elf/elf.js";
 import { createHash } from "node:crypto";
@@ -24,6 +27,7 @@ import { Asm } from "../../thistle/thistle-asm/asm.js";
 import { Link } from "../../thistle/thistle-asm/link.js";
 import { Exe, Obj, codec } from "../../thistle/thistle-asm/fmt.js";
 import type { Tree, TreeEnt } from "../../thistle/src/fs/tree.js";
+import { fileSum } from "../../thistle/src/fs/tree.js";
 import { DirTree } from "../main/dir.js";
 import { Mem64 } from "../../thistle/src/vm/mem64.js";
 import { Rv64 } from "../../thistle/src/vm/rv64.js";
@@ -83,6 +87,12 @@ class Rig {
   os: Os;
   out = "";
   err = "";
+
+  static async create(net: Net | null = null, setId = false): Promise<Rig> {
+    const rig = new Rig(net, setId);
+    await rig.os.ready;
+    return rig;
+  }
 
   constructor(net: Net | null = null, setId = false) {
     this.os = boot({"halt": null, "tree": null, "requireTree": null, "pkg": null, "config": null, "account": null, "onBootProgress": null, put: (s, ch: Ch) => { if (ch === "err") this.err += s; else this.out += s; },
@@ -185,13 +195,23 @@ test("TypeScript boot display preserves original terminal output", async () => {
   }
 });
 
-test("mikuOS composes the actual canonical kernel objects", async () => {
-  const r = new Rig();
+test("mikuOS and the native ABI share process and filesystem state", async () => {
+  const r = (await Rig.create());
   await r.os.ready;
   assert.equal(r.os.k.constructor, Kern);
   assert.equal(r.os.p.constructor, Proc);
   assert.equal(r.os.s.constructor, Sys);
   assert.equal(r.os.k.fs.constructor, Vfs);
+  const memory = r.os.k.canonical.memory, process = r.os.p.native;
+  assert.equal(process.memory, memory);
+  assert.equal(r.os.k.fs.authority.memory, memory);
+  r.os.s.write("/tmp/canonical-state", "same", false, 0o600);
+  assert.equal(thistleVfsFileSize(memory, r.os.s.stat("/tmp/canonical-state").ino), 4n);
+  assert.equal(thistleProcessIdentity(memory, process.hart, 6, 1000, 0, 0), 0n);
+  assert.equal(r.os.p.fsuid, 1000);
+  assert.throws(() => r.os.s.read("/tmp/canonical-state"), { code: "EACCES" });
+  assert.equal(thistleProcessIdentity(memory, process.hart, 6, 0, 0, 0), 1000n);
+  assert.equal(r.os.s.read("/tmp/canonical-state"), "same");
 });
 
 test("canonical RV64 FCLASS distinguishes every IEEE-754 category", () => {
@@ -410,7 +430,7 @@ test("RV64 shared mappings flush on msync, munmap and exit", async () => {
   interface HFs { readFile(p: URL): Promise<Uint8Array>; }
 
   const fs = await hostModule("node:fs/promises") as HFs;
-  const r = new Rig(), bin = new Uint8Array(await fs.readFile(new URL("../../assets/mmap-shared.thx", import.meta.url)));
+  const r = (await Rig.create()), bin = new Uint8Array(await fs.readFile(new URL("../../assets/mmap-shared.thx", import.meta.url)));
   r.os.load("mmap-shared.thx", bin);
   const x = await r.run("/tmp/mmap-shared.thx");
   assert.equal(x.code, 0, x.err); assert.equal(x.err, "");
@@ -431,7 +451,7 @@ test(".thx and .39 are byte-identical header-selected THX aliases", async () => 
   assert.ok(same(assetThx, asset39), "generated .thx and .39 assets differ");
   assert.equal(dec(asset39.slice(0, 4)), "THX2");
 
-  const r = new Rig(), s = r.os.s;
+  const r = (await Rig.create()), s = r.os.s;
   const installedThx = s.readb("/usr/bin/hello.thx");
   const installed39 = s.readb("/usr/bin/hello.39");
   assert.ok(same(installedThx, installed39), "installed .thx and .39 aliases resolve to different bytes");
@@ -464,8 +484,8 @@ test(".thx and .39 are byte-identical header-selected THX aliases", async () => 
   assert.equal(completion.list.join("\n"), "/usr/bin/hello.39");
 });
 
-test("thsh completion includes executable PATH entries and excludes nonexecutables", () => {
-  const r = new Rig(), sys = r.os.s;
+test("thsh completion includes executable PATH entries and excludes nonexecutables", async () => {
+  const r = (await Rig.create()), sys = r.os.s;
   sys.mkfile("/tmp/kittyprompt-test", "#!/bin/thsh\n", 0o755);
   sys.mkfile("/tmp/kittyprompt-private", "not executable", 0o644);
   sys.setenv("PATH", "/tmp:/bin");
@@ -519,7 +539,7 @@ test("local session policy selects direct, prompted and named login safely", () 
 });
 
 test("supervised session commands do not enter root shell history", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const before = r.os.sh.hist.join("\n");
   const result = await r.os.run("echo supervised", [], false);
   assert.equal(result, 0);
@@ -603,7 +623,7 @@ test("Unicode Art Studio logo source is trimmed without losing its visible edges
 });
 
 test("exec replaces the current image without replacing the process", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
 
   r.os.k.install(new FnApp(
     "exec-target",
@@ -671,18 +691,16 @@ test("exec replaces the current image without replacing the process", async () =
 });
 
 test("process credentials preserve real, effective and saved identities", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   r.os.s.write("/tmp/effective-root", "secret\n", false, 0o600);
-  r.os.s.p.cred = {"uid": 0, "gid": 0, ruid: 1000,
+  r.os.s.p.native.installIdentity({"uid": 0, "gid": 0, ruid: 1000,
     euid: 0,
     suid: 0,
     rgid: 1000,
     egid: 0,
     sgid: 0,
     groups: [1000, 20],
-  };
-  r.os.s.p.fsuid = 0;
-  r.os.s.p.fsgid = 0;
+  });
   assert.equal(r.os.s.ruid, 1000);
   assert.equal(r.os.s.euid, 0);
   assert.equal(r.os.s.suid, 0);
@@ -698,21 +716,21 @@ test("process credentials preserve real, effective and saved identities", async 
   assert.equal(child.cred.rgid, 1000);
   assert.equal(child.cred.egid, 0);
   assert.equal(child.cred.sgid, 0);
-  r.os.s.p.cred.groups.push(99);
+  r.os.s.setGroups([...r.os.s.p.cred.groups, 99]);
   assert.ok(!child.cred.groups.includes(99), "child shared its parent's supplementary group array");
   assert.equal(await r.os.s.wait(child.pid), 0);
 
-  r.os.s.p.cred.euid = 1000;
-  r.os.s.p.cred.egid = 1000;
-  r.os.s.p.fsuid = 1000;
-  r.os.s.p.fsgid = 1000;
+  r.os.s.setResgid(null, 1000, null);
+  r.os.s.setResuid(null, 1000, null);
+  r.os.s.setFsuid(1000);
+  r.os.s.setFsgid(1000);
   let denied = false;
   try { r.os.s.read("/tmp/effective-root"); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  denied = e instanceof KErr && e.code === "EACCES"; }
   assert.ok(denied, "filesystem used the real or saved root identity instead of the effective identity");
 });
 
 test("identity transitions enforce saved-ID and group rules atomically", async () => {
-  const r = new Rig(), s = r.os.s;
+  const r = (await Rig.create()), s = r.os.s;
   s.write("/tmp/root-only", "root\n", false, 0o600);
   s.setResgid(1000, 0, 0);
   s.setResuid(1000, 0, 0);
@@ -744,7 +762,7 @@ test("identity transitions enforce saved-ID and group rules atomically", async (
   assert.equal(s.setFsuid(0), 1000);
   assert.equal(s.read("/tmp/root-only"), "root\n");
 
-  const temporary = new Rig().os.s;
+  const temporary = (await Rig.create()).os.s;
   temporary.setResuid(1000, 0, 0);
   temporary.setReuid(null, 1000);
   assert.equal(temporary.suid, 0, "temporary effective drop destroyed the saved uid");
@@ -756,7 +774,7 @@ test("identity transitions enforce saved-ID and group rules atomically", async (
   try { temporary.setReuid(null, 0); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  denied = e instanceof KErr && e.code === "EPERM"; }
   assert.ok(denied, "permanently dropped uid was restored");
 
-  const permanent = new Rig().os.s;
+  const permanent = (await Rig.create()).os.s;
   permanent.setGid(1000);
   permanent.setUid(1000);
   assert.equal(`${permanent.ruid}:${permanent.euid}:${permanent.suid}`, "1000:1000:1000");
@@ -767,186 +785,67 @@ test("identity transitions enforce saved-ID and group rules atomically", async (
 });
 
 test("RV64 identity syscall numbers and pointer checks match the Linux ABI", async () => {
-  interface RvHarness {
-    readonly x: BigInt64Array;
-    m: Mem64;
-    floor: bigint;
-    brk: bigint;
-    stackAt: bigint;
-    call(number: number): Promise<bigint>;
-  }
-  const r = new Rig(), s = r.os.s;
-  const vm = new Rv64(s) as object as RvHarness;
-  vm.m = new Mem64(1024n * 1024n, 4 * 65536);
-  vm.floor = 0x10000n; vm.brk = 0x20000n; vm.stackAt = 0xf0000n;
-
-  vm.x[10] = 1000n; vm.x[11] = 0n; vm.x[12] = 0n;
-  assert.equal(await vm.call(147), 0n);
-  assert.equal(await vm.call(174), 1000n);
-  assert.equal(await vm.call(175), 0n);
-
-  vm.x[10] = 0x10000n; vm.x[11] = 0x10004n; vm.x[12] = 0x10008n;
-  assert.equal(await vm.call(148), 0n);
-  assert.equal(vm.m.u32(0x10000n), 1000); assert.equal(vm.m.u32(0x10004n), 0); assert.equal(vm.m.u32(0x10008n), 0);
-
-  vm.m.set32(0x10000n, 0x12345678);
-  vm.x[10] = 0x10000n; vm.x[11] = 0n; vm.x[12] = 0x10008n;
-  let fault = false;
-  try { await vm.call(148); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  fault = e instanceof KErr && e.code === "EFAULT"; }
-  assert.ok(fault, "getresuid accepted a null result pointer");
-  assert.equal(vm.m.u32(0x10000n), 0x12345678, "getresuid partially wrote before pointer validation");
-
-  s.setGroups([7, 8]);
-  vm.x[10] = 0n; vm.x[11] = 0n;
-  assert.equal(await vm.call(158), 2n);
-  vm.x[10] = 2n; vm.x[11] = 0x10100n;
-  assert.equal(await vm.call(158), 2n);
-  assert.equal(vm.m.u32(0x10100n), 7); assert.equal(vm.m.u32(0x10104n), 8);
-  vm.m.set32(0x10110n, 20); vm.m.set32(0x10114n, 30);
-  vm.x[10] = 2n; vm.x[11] = 0x10110n;
-  assert.equal(await vm.call(159), 0n);
-  assert.equal(s.groups.join(","), "20,30");
-
-  s.write("/tmp/high-owner", "ownership\n");
-  vm.m.write(0x10120n, enc("/tmp/high-owner\0"));
-  vm.x[10] = -100n; vm.x[11] = 0x10120n;
-  vm.x[12] = 0xfffffffen; vm.x[13] = 0xfffffffdn; vm.x[14] = 0n;
-  assert.equal(await vm.call(54), 0n);
-  assert.equal(s.stat("/tmp/high-owner").uid, 0xfffffffe);
-  assert.equal(s.stat("/tmp/high-owner").gid, 0xfffffffd);
-
-  const highOwner = s.open("/tmp/high-owner", "r+");
-  vm.x[10] = BigInt(highOwner); vm.x[11] = 0xfffffffdn; vm.x[12] = 0xfffffffen;
-  assert.equal(await vm.call(55), 0n);
-  s.close(highOwner);
-  assert.equal(s.stat("/tmp/high-owner").uid, 0xfffffffd);
-  assert.equal(s.stat("/tmp/high-owner").gid, 0xfffffffe);
-
-  vm.x[10] = -100n; vm.x[11] = 0x10120n;
-  vm.x[12] = 0xffffffffn; vm.x[13] = 1n; vm.x[14] = 0n;
-  let invalidOwner = false;
-  try { await vm.call(54); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  invalidOwner = e instanceof KErr && e.code === "EINVAL"; }
-  assert.ok(invalidOwner, "fchownat accepted the reserved all-ones uid");
-  assert.equal(s.stat("/tmp/high-owner").uid, 0xfffffffd, "rejected fchownat changed ownership");
-
-  vm.m.set32(0x10200n, 0); vm.m.set16(0x10204n, 0); vm.m.set16(0x10206n, 0xffff);
-  vm.x[10] = 0x10200n; vm.x[11] = 1n; vm.x[12] = 0x10300n; vm.x[13] = 0n; vm.x[14] = 0n;
-  assert.equal(await vm.call(73), 0n); assert.equal(vm.m.u16(0x10206n), 0, "ppoll rejected a valid standard descriptor");
-  vm.m.set32(0x10200n, 99);
-  assert.equal(await vm.call(73), 1n); assert.equal(vm.m.u16(0x10206n), 0x20, "ppoll did not mark an invalid descriptor");
-
-  vm.x[10] = BigInt(s.pid); vm.x[11] = 0n;
-  assert.equal(await vm.call(129), 1n, "RV64 kill(pid, 0) did not probe a live process");
-  assert.ok(!s.p.ac.signal.aborted, "RV64 signal-zero probe delivered a signal");
+  const rig = (await Rig.create()), sys = rig.os.s, payload = new Uint8Array(0x340);
+  const initial = new DataView(payload.buffer);
+  initial.setUint32(0x110, 0x12345678, true);
+  initial.setUint32(0x210, 20, true); initial.setUint32(0x214, 30, true);
+  payload.set(enc("/tmp/high-owner\0"), 0x220);
+  initial.setUint32(0x300, 0, true); initial.setUint16(0x306, 0xffff, true);
+  initial.setUint32(0x310, 99, true); initial.setUint16(0x316, 0xffff, true);
+  sys.setGroups([7, 8]);
+  sys.write("/tmp/high-owner", "ownership\n");
+  const guest = await runGuestSyscalls(sys, [
+    [147, [1000n, 0n, 0n]], [174, []], [175, []],
+    [148, [GUEST_DATA + 0x100n, GUEST_DATA + 0x104n, GUEST_DATA + 0x108n]],
+    [148, [GUEST_DATA + 0x110n, 0n, GUEST_DATA + 0x108n]],
+    [158, [0n, 0n]], [158, [2n, GUEST_DATA + 0x200n]], [159, [2n, GUEST_DATA + 0x210n]],
+    [54, [-100n, GUEST_DATA + 0x220n, 0xfffffffen, 0xfffffffdn, 0n]],
+    [56, [-100n, GUEST_DATA + 0x220n, 2n, 0n]],
+    [55, [null, 0xfffffffdn, 0xfffffffen]], [57, [3n]],
+    [54, [-100n, GUEST_DATA + 0x220n, 0xffffffffn, 1n, 0n]],
+    [73, [GUEST_DATA + 0x300n, 1n, GUEST_DATA + 0x320n, 0n, 0n]],
+    [73, [GUEST_DATA + 0x310n, 1n, GUEST_DATA + 0x320n, 0n, 0n]],
+    [172, []], [129, [null, 0n]],
+  ], payload);
+  assert.deepEqual(guest.results.slice(0, 15), [0n, 1000n, 0n, 0n, -14n, 2n, 2n, 0n, 0n, 3n, 0n, 0n, -22n, 0n, 1n]);
+  assert.equal(guest.results.at(-1) ?? null, 1n, "signal zero must probe without delivery");
+  assert.equal(guest.data.getUint32(0x100, true), 1000);
+  assert.equal(guest.data.getUint32(0x104, true), 0);
+  assert.equal(guest.data.getUint32(0x108, true), 0);
+  assert.equal(guest.data.getUint32(0x110, true), 0x12345678, "failed getresuid partially wrote its result");
+  assert.equal(guest.data.getUint32(0x200, true), 7); assert.equal(guest.data.getUint32(0x204, true), 8);
+  assert.deepEqual(guest.credentials.groups, [20, 30]);
+  assert.equal(guest.credentials.ruid, 1000); assert.equal(guest.credentials.euid, 0);
+  assert.equal(guest.data.getUint16(0x306, true), 0);
+  assert.equal(guest.data.getUint16(0x316, true), 0x20);
+  assert.equal(sys.stat("/tmp/high-owner").uid, 0xfffffffd);
+  assert.equal(sys.stat("/tmp/high-owner").gid, 0xfffffffe);
+  assert.ok(!sys.p.ac.signal.aborted);
 });
 
 test("RV64 renameat2 supports transactional replacement semantics", async () => {
-  interface RvRenameHarness {
-    readonly x: BigInt64Array;
-    m: Mem64;
-    floor: bigint;
-    brk: bigint;
-    stackAt: bigint;
-    call(number: number): Promise<bigint>;
-  }
-
-  const r = new Rig();
-  const s = r.os.s;
-  const vm = new Rv64(s) as object as RvRenameHarness;
-
-  vm.m = new Mem64(1024n * 1024n, 4 * 65536);
-  vm.floor = 0x10000n;
-  vm.brk = 0x20000n;
-  vm.stackAt = 0xf0000n;
-
-  s.write("/tmp/renameat2-source", "renamed\n");
-
-  vm.m.write(
-    0x10000n,
-    enc("/tmp/renameat2-source\0"),
-  );
-
-  vm.m.write(
-    0x10100n,
-    enc("/tmp/renameat2-target\0"),
-  );
-
-  vm.x[10] = -100n;
-  vm.x[11] = 0x10000n;
-  vm.x[12] = -100n;
-  vm.x[13] = 0x10100n;
-  vm.x[14] = 0n;
-
-  assert.equal(await vm.call(276), 0n);
-  assert.equal(s.read("/tmp/renameat2-target"), "renamed\n");
-
-  let oldMissing = false;
-
-  try {
-    s.stat("/tmp/renameat2-source");
-  } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    oldMissing =
-      error instanceof KErr &&
-      error.code === "ENOENT";
-  }
-
-  assert.ok(
-    oldMissing,
-    "renameat2 left its old path behind",
-  );
-
-  s.write("/tmp/renameat2-source", "source\n");
-  s.write("/tmp/renameat2-existing", "existing\n");
-
-  vm.m.write(
-    0x10200n,
-    enc("/tmp/renameat2-existing\0"),
-  );
-
-  vm.x[10] = -100n;
-  vm.x[11] = 0x10000n;
-  vm.x[12] = -100n;
-  vm.x[13] = 0x10200n;
-  vm.x[14] = 1n;
-
-  let noReplace = false;
-
-  try {
-    await vm.call(276);
-  } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    noReplace =
-      error instanceof KErr &&
-      error.code === "EEXIST";
-  }
-
-  assert.ok(
-    noReplace,
-    "RENAME_NOREPLACE replaced an existing target",
-  );
-
-  assert.equal(s.read("/tmp/renameat2-source"), "source\n");
-  assert.equal(s.read("/tmp/renameat2-existing"), "existing\n");
-
-  vm.x[14] = 2n;
-
-  let unsupported = false;
-
-  try {
-    await vm.call(276);
-  } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    unsupported =
-      error instanceof KErr &&
-      error.code === "EINVAL";
-  }
-
-  assert.ok(
-    unsupported,
-    "renameat2 accepted unsupported exchange semantics",
-  );
+  const rig = (await Rig.create()), sys = rig.os.s, payload = new Uint8Array(0x300);
+  payload.set(enc("/tmp/renameat2-source\0"), 0);
+  payload.set(enc("/tmp/renameat2-target\0"), 0x100);
+  payload.set(enc("/tmp/renameat2-existing\0"), 0x200);
+  sys.write("/tmp/renameat2-source", "renamed\n");
+  const moved = await runGuestSyscalls(sys, [[276, [-100n, GUEST_DATA, -100n, GUEST_DATA + 0x100n, 0n]]], payload);
+  assert.deepEqual(moved.results, [0n]);
+  assert.equal(sys.read("/tmp/renameat2-target"), "renamed\n");
+  assert.throws(() => sys.stat("/tmp/renameat2-source"), { code: "ENOENT" });
+  sys.write("/tmp/renameat2-source", "source\n");
+  sys.write("/tmp/renameat2-existing", "existing\n");
+  const refused = await runGuestSyscalls(sys, [
+    [276, [-100n, GUEST_DATA, -100n, GUEST_DATA + 0x200n, 1n]],
+    [276, [-100n, GUEST_DATA, -100n, GUEST_DATA + 0x200n, 2n]],
+  ], payload);
+  assert.deepEqual(refused.results, [-17n, -22n]);
+  assert.equal(sys.read("/tmp/renameat2-source"), "source\n");
+  assert.equal(sys.read("/tmp/renameat2-existing"), "existing\n");
 });
 
 test("identity commands distinguish real and effective users", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   r.os.s.setResgid(1000, 0, 0);
   r.os.s.setResuid(1000, 0, 0);
   const x = await r.run("id; whoami");
@@ -957,7 +856,7 @@ test("identity commands distinguish real and effective users", async () => {
 });
 
 test("set-ID execution applies saved IDs only on suid mounts", async () => {
-  const r = new Rig(null, true), s = r.os.s, native = s.readb("/usr/bin/hello.txe");
+  const r = (await Rig.create(null, true)), s = r.os.s, native = s.readb("/usr/bin/hello.txe");
   const install = (path: string, uid: number, gid: number, mode: number): void => {
     s.writeb(path, native); s.chown(path, uid, gid); s.chmod(path, mode);
   };
@@ -1017,7 +916,7 @@ test("set-ID execution applies saved IDs only on suid mounts", async () => {
 });
 
 test("nosuid execution ignores file privilege bits", async () => {
-  const r = new Rig(), s = r.os.s, native = s.readb("/usr/bin/hello.txe");
+  const r = (await Rig.create()), s = r.os.s, native = s.readb("/usr/bin/hello.txe");
   s.writeb("/tmp/nosuid.txe", native); s.chown("/tmp/nosuid.txe", 0, 20); s.chmod("/tmp/nosuid.txe", 0o6755);
   s.setGroups([1000]); s.setResgid(1000, 1000, 1000); s.setResuid(1000, 1000, 1000);
   assert.ok((requireValue(withValue((r.os.k.mounts()[0] ?? null) ?? null, value => value.opt) ?? null, "src/test/all.ts:2691").includes("nosuid") ?? null));
@@ -1028,7 +927,7 @@ test("nosuid execution ignores file privilege bits", async () => {
 });
 
 test("boot image and init", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   assert.equal(withValue((r.os.k.ps()[0] ?? null) ?? null, value => value.pid), 1);
   assert.equal(r.os.s.read("/etc/hostname"), "mikuos\n");
   const release = r.os.s.read("/etc/os-release");
@@ -1073,7 +972,7 @@ test("boot image and init", async () => {
 });
 
 test("every built-in rescue command has a runnable help path", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   for (const a of r.os.s.apps()) {
     const path = `/usr/libexec/mikuos/builtin/${a.name}`;
     const x = await r.run(`${path} --help`);
@@ -1083,8 +982,8 @@ test("every built-in rescue command has a runnable help path", async () => {
   }
 });
 
-test("inode data, links and permissions", () => {
-  const r = new Rig();
+test("inode data, links and permissions", async () => {
+  const r = (await Rig.create());
   r.os.s.mkdir("/tmp/fs");
   r.os.s.write("/tmp/fs/a", "one");
   r.os.s.link("/tmp/fs/a", "/tmp/fs/b");
@@ -1094,16 +993,16 @@ test("inode data, links and permissions", () => {
   assert.equal(r.os.s.read("/tmp/fs/c"), "two");
   assert.equal(r.os.s.stat("/tmp/fs/a").nlink, 2);
   r.os.s.chmod("/tmp/fs/a", 0o600);
+  const guest = r.os.k.session({ sin: r.os.tty.input, sout: r.os.tty.output, serr: r.os.tty.error }, { uid: 1000, gid: 1000, groups: [1000] });
   let e: Error | null = null;
-  try { r.os.k.fs.read("/tmp/fs/a", "/", {uid: 1000, gid: 1000, groups: [1000] }); } catch (caughtValue) { const x = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  e = x; }
+  try { r.os.k.fs.read("/tmp/fs/a", guest.native); } catch (caughtValue) { const x = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  e = x; }
   assert.ok(e instanceof KErr && e.code === "EACCES", "guest bypassed mode bits");
-  const g = { uid: 1000, gid: 1000, ruid: 1000, euid: 1000, suid: 1000, rgid: 1000, egid: 1000, sgid: 1000, groups: [1000] };
-  r.os.k.fs.write("/home/guest/own", "mine", "/", g);
-  assert.equal(r.os.k.fs.stat("/home/guest/own", "/", g).uid, 1000);
+  r.os.k.fs.write("/home/guest/own", "mine", guest.native);
+  assert.equal(r.os.k.fs.stat("/home/guest/own", guest.native).uid, 1000);
 });
 
-test("descriptor offsets and append", () => {
-  const r = new Rig();
+test("descriptor offsets and append", async () => {
+  const r = (await Rig.create());
   r.os.s.write("/tmp/fd", "abcdef");
   const fd = r.os.s.open("/tmp/fd", "r+");
   assert.equal(dec(r.os.s.fdr(fd, 2)), "ab");
@@ -1151,9 +1050,17 @@ test("versioned image migration changes stock identity but preserves local ident
   const release = (withValue(tree.ent ?? null, value => (value.find(x => x.p === "/etc/os-release") ?? null)) ?? null);
   const motd = (withValue(tree.ent ?? null, value => (value.find(x => x.p === "/etc/motd") ?? null)) ?? null);
   assert.ok(withValue(issue ?? null, value => value.data) && withValue(release ?? null, value => value.data) && withValue(motd ?? null, value => value.data), "identity files were not persisted");
-  requireValue(issue ?? null, "src/test/all.ts:2822").data = enc("Thistle OS 2.0.0 \\n \\l\n");
-  requireValue(release ?? null, "src/test/all.ts:2823").data = enc("locally branded\n");
-  requireValue(motd ?? null, "src/test/all.ts:2824").data = enc("Welcome to Thistle 2.0.0, the 64-bit TypeScript Unix-like system.\nRun 'hello.txe' for Thistle64, 'hello32.txe' for compatibility, or 'help'.\n");
+  // Simulate a valid persisted image, including the checksums of edited bytes.
+  for (const [entry, text] of [
+    [issue, "Thistle OS 2.0.0 \\n \\l\n"],
+    [release, "locally branded\n"],
+    [motd, "Welcome to Thistle 2.0.0, the 64-bit TypeScript Unix-like system.\nRun 'hello.txe' for Thistle64, 'hello32.txe' for compatibility, or 'help'.\n"],
+  ] as const) {
+    const file = requireValue(entry, "persisted identity file");
+    file.data = enc(text);
+    file.size = file.data.length;
+    file.sum = fileSum(file.data);
+  }
   tree.imageVersion = 0;
 
   const b = boot(quiet, null);
@@ -1165,7 +1072,7 @@ test("versioned image migration changes stock identity but preserves local ident
 });
 
 test("quoting, variables and command gates", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   let x = await r.run("export COLOUR=green; echo '$COLOUR' \"$COLOUR\"");
   assert.equal(x.out, "$COLOUR green\n");
   x = await r.run("false && echo bad; false || echo good; true && echo yes");
@@ -1176,7 +1083,7 @@ test("quoting, variables and command gates", async () => {
 });
 
 test("command and colon are handled inside /bin/thsh", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
 
   let x = await r.run("/bin/thsh -c ':'");
   assert.equal(x.code, 0);
@@ -1230,7 +1137,7 @@ test("command and colon are handled inside /bin/thsh", async () => {
 
 test("GNU head dd od and Bash are actual pre-built THX2 guest executables", async () => {
   const file = await import("node:fs/promises");
-  const r = new Rig();
+  const r = (await Rig.create());
   for (const command of ["head", "dd", "od", "bash"]) {
     const path = "/bin/" + command;
     const bin = new Uint8Array(await file.readFile(new URL("../../.thistle.base" + path, import.meta.url), null));
@@ -1255,7 +1162,7 @@ test("GNU head dd od and Bash are actual pre-built THX2 guest executables", asyn
 });
 
 test("thsh folds physical line continuations without changing quoted here-documents", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const slash = String.fromCharCode(92);
   const lines = (...value: string[]): string => value.join("\n");
 
@@ -1303,8 +1210,8 @@ test("thsh folds physical line continuations without changing quoted here-docume
   assert.equal(x.out, "leftright\n", "an unquoted here-document lost its established expansion rules");
 });
 
-test("line editor clears unaccepted history suggestions before submitting", () => {
-  const r = new Rig();
+test("line editor clears unaccepted history suggestions before submitting", async () => {
+  const r = (await Rig.create());
   r.os.sh.hist.push('echo "test" && echo "test2"');
   let output = "";
   let executed = "";
@@ -1331,7 +1238,7 @@ test("line editor clears unaccepted history suggestions before submitting", () =
 });
 
 test("line editor continues typed and pasted commands and cancels safely", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const slash = String.fromCharCode(92);
   const executed: Array<{ source: string; bodies: string[] }> = [];
   let output = "";
@@ -1381,7 +1288,7 @@ test("line editor continues typed and pasted commands and cancels safely", async
 });
 
 test("redirects and filesystem commands", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const x = await r.run("mkdir -p /tmp/a/b && echo first > /tmp/a/b/x && echo second >> /tmp/a/b/x && cp /tmp/a/b/x /tmp/a/y && cat /tmp/a/y");
   assert.equal(x.code, 0);
   assert.equal(x.out, "first\nsecond\n");
@@ -1415,7 +1322,7 @@ test("redirects and filesystem commands", async () => {
 });
 
 test("streaming pipeline closes upstream", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const file = await import("node:fs/promises");
   const head = new Uint8Array(await file.readFile(new URL("../../.thistle.base/bin/head", import.meta.url), null));
   r.os.s.mkfile("/bin/head", head, 0o755);
@@ -1429,14 +1336,14 @@ test("streaming pipeline closes upstream", async () => {
 });
 
 test("text tool pipeline", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const x = await r.run("printf 'pear\\napple\\npear\\nplum\\n' | sort | uniq -c | grep -E '2 pear'");
   assert.equal(x.code, 0);
   assert.ok(x.out.includes("2 pear"));
 });
 
 test("background jobs and signals", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   let x = await r.run("sleep 30 &");
   assert.ok(/^\[1\] \d+\n$/.test(x.out));
   x = await r.run("jobs");
@@ -1468,7 +1375,7 @@ test("ELF import validates results and preserves file errors", async () => {
   const overflow = image.slice();
   new DataView(overflow.buffer).setBigUint64(24, 0xffffffffffffffffn, true);
   assert.equal(parser.parse(overflow).message, "ELF entry is outside Thistle's address range");
-  const r = new Rig();
+  const r = (await Rig.create());
   r.os.s.mkfile("/tmp/exit.elf", image);
   r.os.s.mkfile("/tmp/short.elf", truncated);
   let x = await r.run("elf2thx -o /tmp/exit.thx /tmp/exit.elf; /tmp/exit.thx");
@@ -1481,7 +1388,7 @@ test("ELF import validates results and preserves file errors", async () => {
 });
 
 test("shell exits preserve status, cleanup and subshell isolation without throwing", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   let halted = 0;
   r.os.host.halt = () => { halted++; };
   let x = await r.run("echo before; exit 7; echo unreachable");
@@ -1518,7 +1425,7 @@ test("shell exits preserve status, cleanup and subshell isolation without throwi
 });
 
 test("scripts retain shell state", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   r.os.s.write("/tmp/t.thsh", "#!/bin/thsh\nexport X=inside\necho $X\ncd /tmp\npwd\n", false, 0o755);
   r.os.s.chmod("/tmp/t.thsh", 0o755);
   const x = await r.run("/tmp/t.thsh");
@@ -1565,8 +1472,8 @@ test("foreground TTY interruption restores echo and wakes native input", async (
   assert.equal(dec(await next), "clean\n", "partial secret survived the interrupt");
 });
 
-test("process signal masks defer delivery across critical sections", () => {
-  const r = new Rig(), p = r.os.p, interrupt = 1n << 1n;
+test("process signal masks defer delivery across critical sections", async () => {
+  const r = (await Rig.create()), p = r.os.p, interrupt = 1n << 1n;
   assert.equal(p.setSignalMask(0, interrupt), 0n);
   assert.equal(p.signalMask, interrupt);
   assert.equal(p.signal(2), false, "masked signal was delivered immediately");
@@ -1576,15 +1483,15 @@ test("process signal masks defer delivery across critical sections", () => {
   assert.equal(p.sig, 2);
   assert.ok(p.ac.signal.aborted, "pending signal was not delivered after unmasking");
 
-  const k = new Rig().os.p;
+  const k = (await Rig.create()).os.p;
   k.setSignalMask(0, 1n << 8n);
   assert.equal(k.signalMask, 0n, "SIGKILL was maskable");
   assert.equal(k.signal(9), true);
   assert.equal(k.sig, 9);
 });
 
-test("signal zero probes process ownership without delivery", () => {
-  const r = new Rig();
+test("signal zero probes process ownership without delivery", async () => {
+  const r = (await Rig.create());
   assert.equal(r.os.s.kill(r.os.p.pid, 0), 1);
   assert.ok(!r.os.p.ac.signal.aborted, "signal zero interrupted its target");
 
@@ -1598,8 +1505,8 @@ test("signal zero probes process ownership without delivery", () => {
   assert.equal(error, "ESRCH", "a missing process passed a signal-zero probe");
 });
 
-test("/dev/tty opens the controlling terminal", () => {
-  const r = new Rig();
+test("/dev/tty opens the controlling terminal", async () => {
+  const r = (await Rig.create());
   const fd = r.os.s.open("/dev/tty", "r+");
   const f = (r.os.s.p.fds.get(fd) ?? null);
   assert.ok(withValue(withValue(f ?? null, value => value.input) ?? null, value => value.tty), "/dev/tty has no terminal input");
@@ -1779,7 +1686,7 @@ _start:
 });
 
 test("thistle64 integer, branch and memory instructions", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const src = `.macro expect r, v
   cmpi \\r, \\v
   jne fail
@@ -1880,7 +1787,7 @@ fail:
 });
 
 test("thistle64 wide addresses, integers and floating point", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   const src = `.equ SYS_brk, 10
 .text
 .global _start
@@ -1929,7 +1836,7 @@ fail:
 });
 
 test("native tools assemble, link, inspect and execute", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   let x = await r.run("hello.txe");
   assert.equal(x.code, 0); assert.equal(x.out, "Hello from native Thistle assembly!\n");
   x = await r.run("hello32.txe");
@@ -1949,7 +1856,7 @@ test("native tools assemble, link, inspect and execute", async () => {
 });
 
 test("native ABI links objects and performs filesystem syscalls", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   r.os.s.write("/tmp/main.tas", `.text
 .global main
 .extern helper
@@ -2009,7 +1916,7 @@ _start:
 
 test("HTTP stack and wget userland", async () => {
   const dev = new TestNet();
-  const r = new Rig(new Net(dev));
+  const r = (await Rig.create(new Net(dev)));
   let x = await r.run("wget -S http://unit.test/go -O /tmp/payload");
   assert.equal(x.code, 0);
   assert.equal(r.os.s.read("/tmp/payload"), "network payload\n");
@@ -2041,7 +1948,7 @@ test("HTTP stack and wget userland", async () => {
 });
 
 test("devices and procfs are live", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   assert.equal(r.os.s.readb("/dev/zero").slice(0, 32).every(x => x === 0), true);
   assert.ok(r.os.s.read("/proc/version").includes("Thistle version"));
   assert.ok(r.os.s.read("/proc/version").includes("Thistle TypeScript"));
@@ -2054,7 +1961,7 @@ test("devices and procfs are live", async () => {
 });
 
 test("globs, find and metadata", async () => {
-  const r = new Rig();
+  const r = (await Rig.create());
   await r.run("mkdir /tmp/g; touch /tmp/g/a.txt /tmp/g/b.txt /tmp/g/nope; chmod 640 /tmp/g/a.txt");
   let x = await r.run("echo /tmp/g/*.txt");
   assert.equal(x.out, "/tmp/g/a.txt /tmp/g/b.txt\n");

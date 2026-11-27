@@ -25,7 +25,7 @@ export class Env extends App {
   constructor() { super("env", "Print an environment or run with modified values.", "env [NAME=value ...] [command [arg ...]]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
     const e = s.env() as Map<string, string>;
-    while ((withValue((a[0] ?? null) ?? null, value => value.includes("=")) ?? null)) { const x = requireValue(a.shift() ?? null, "src/apps/sys.ts:25"); const i = x.indexOf("="); e.set(x.slice(0, i), x.slice(i + 1)); }
+    while ((withValue((a[0] ?? null), value => value.includes("=")))) { const x = requireValue(a.shift() ?? null, "src/apps/sys.ts:25"); const i = x.indexOf("="); e.set(x.slice(0, i), x.slice(i + 1)); }
     if (a.length) { const p = s.start(requireValue(a[0] ?? null, "src/apps/sys.ts:26"), a.slice(1), {"io": null, "fds": null, "pgid": null, "cwd": null,  env: e }); return s.wait(p.pid); }
     for (const [k, v] of [...e].sort()) await s.out(`${k}=${v}\n`);
     return 0;
@@ -98,7 +98,7 @@ export class Uptime extends App {
 
 export class Hostname extends App {
   constructor() { super("hostname", "Get or set the kernel host name.", "hostname [name]"); }
-  override async run(s: Sys, a: string[]): Promise<number> { if ((a[0] ?? null)) { ensure(!(s.euid), () => bad("EPERM", "hostname")); s.k.host = requireValue(a[0] ?? null, "hostname"); s.setenv("HOSTNAME", (requireValue(a[0] ?? null, "src/apps/sys.ts:87") ?? null)); } else await s.out(s.k.host + "\n"); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { if ((a[0] ?? null)) { ensure(!(s.euid), () => bad("EPERM", "hostname")); s.k.host = requireValue(a[0] ?? null, "hostname"); s.setenv("HOSTNAME", (requireValue(a[0] ?? null, "src/apps/sys.ts:87"))); } else await s.out(s.k.host + "\n"); return 0; }
 }
 
 export class Dmesg extends App {
@@ -176,13 +176,13 @@ export class Thsh extends App {
       const p = requireValue(a.shift() ?? null, "src/apps/sys.ts:154");
       s.setenv("0", p); s.setenv("#", String(a.length)); s.setenv("*", a.join(" ")); a.forEach((x, i) => s.setenv(String(i + 1), x));
       const q = s.read(p).split("\n");
-      ((withValue((q[0] ?? null) ?? null, value => value.startsWith("#!")) ?? null)) && (q.shift() ?? null);
+      ((withValue((q[0] ?? null), value => value.startsWith("#!")))) && (q.shift() ?? null);
       return sh.run(q.join("\n"), false);
     }
     sh.ensureUserState(true);
 
     const tty = withValue((
-      withValue((s.p.fds.get(0) ?? null) ?? null, value => value.input) as { tty: Tty | null } | null
+      withValue((s.p.fds.get(0)), value => value.input) as { tty: Tty | null } | null
     ) ?? null, value => value.tty);
 
     /*
