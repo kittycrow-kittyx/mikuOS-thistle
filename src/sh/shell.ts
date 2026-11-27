@@ -1,4 +1,5 @@
 import { Stream } from "../../thistle/src/io/stream.js";
+import { firstArgument } from "../core/arguments.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import type { TerminalState } from "../../thistle/src/io/stream.js";
 import { withValue } from "../../thistle/src/core/err.js";
@@ -491,11 +492,11 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
       const asn = this.assign(raw);
       const a = asn.a;
       if (!a.length) bad("EINVAL", "empty command");
-      if ((a[0] ?? null) === "kill") a.splice(1, a.length - 1, ...a.slice(1).map(x => x.startsWith("%") ? String(-this.job(x).pgid) : x));
+      if ((firstArgument(a)) === "kill") a.splice(1, a.length - 1, ...a.slice(1).map(x => x.startsWith("%") ? String(-this.job(x).pgid) : x));
       const pipe = i < u.pipe.length - 1 ? new Pipe() : null;
       const base: Io = { sin, sout: pipe ?? this.base().sout, serr: this.base().serr };
       const io = this.io(c, base);
-      let name = requireValue(a[0] ?? null, "src/sh/shell.ts:478");
+      let name = requireValue(firstArgument(a), "src/sh/shell.ts:478");
       let args = a.slice(1);
       if (built.has(name)) { args = ["-c", [name, ...args].map(this.quote).join(" ")]; name = "thsh"; }
       const env = this.s.env() as Map<string, string>;
@@ -568,85 +569,10 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
   private async bi(name: string, a: string[]): Promise<number> {
     switch (name) {
       case ":": return 0;
-      case "command": {
-        // POSIX command operates on the given name without alias expansion.
-        // Keep shell special built-ins in the current process, particularly
-        // export and cd, and run ordinary commands through the normal PATH.
-        let describe: "path" | "verbose" | null = null;
-        let defaultPath = false;
-        let index = 0;
-        while (index < a.length) {
-          const option = requireValue(a[index] ?? null, "src/sh/shell.ts:542");
-          if (option === "--") { index++; break; }
-          if (option === "-p") {
-            defaultPath = true;
-            index++;
-            continue;
-          }
-          if (option === "-v" || option === "-V") {
-            describe = option === "-v" ? "path" : "verbose";
-            index++;
-            continue;
-          }
-          if (option.startsWith("-")) {
-            await this.s.err(`command: unsupported option: ${option}\n`);
-            return 2;
-          }
-          break;
-        }
-        const names = a.slice(index);
-        const oldPath = this.s.env("PATH");
-        if (defaultPath) this.s.setenv("PATH", "/bin:/usr/bin");
-        try {
-          if (describe) {
-            let failed = false;
-            for (const target of names) {
-              // Command, job and here-document state remain scoped to their current execution phase.
-              //@cg-expect-warning
-              if (built.has(target)) {
-                await this.s.out(describe === "path"
-                  ? `${target}\n`
-                  : `${target} is a shell built-in\n`);
-                continue;
-              }
-              try {
-                const path = this.s.which(target);
-                await this.s.out(describe === "path"
-                  ? `${path}\n`
-                  : `${target} is ${path}\n`);
-              } catch {
-                failed = true;
-              }
-            }
-            return failed ? 1 : 0;
-          }
-          if (!names.length) return 0;
-          const target = names[0] ?? "", args = names.slice(1);
-          if (built.has(requireValue(target, "src/sh/shell.ts:586"))) return this.bi(requireValue(target, "src/sh/shell.ts:586"), args);
-
-          try { this.s.which(requireValue(target, "src/sh/shell.ts:588")); }
-          catch {
-            await this.s.err(`command: ${target}: not found\n`);
-            return 127;
-          }
-          const proc = this.s.start(requireValue(target, "src/sh/shell.ts:593"), args, {"fds": null, "pgid": null, "cwd": null,
-            io: this.base(),
-            env: this.s.env() as Map<string, string>,
-          });
-          try { return await proc.done; }
-          finally { this.s.reap(proc.pid); }
-        } finally {
-          if (defaultPath) {
-            // Command, job and here-document state remain scoped to their current execution phase.
-            //@cg-expect-warning
-            if (typeof oldPath === "string") this.s.setenv("PATH", oldPath);
-            else this.s.unset("PATH");
-          }
-        }
-      }
+      case "command": return this.commandBuiltin(a);
       case "cd": {
-        const p = (a[0] ?? null) === "-" ? String(this.s.env("OLDPWD") ?? bad("ENOENT", "OLDPWD is not set")) : a[0] ?? String(this.s.env("HOME") ?? "/");
-        this.s.cd(p); if ((a[0] ?? null) === "-") await this.s.out(this.s.cwd + "\n"); return 0;
+        const p = (firstArgument(a)) === "-" ? String(this.s.env("OLDPWD") ?? bad("ENOENT", "OLDPWD is not set")) : a[0] ?? String(this.s.env("HOME") ?? "/");
+        this.s.cd(p); if ((firstArgument(a)) === "-") await this.s.out(this.s.cwd + "\n"); return 0;
       }
       case "export":
         for (const x of a) { const i = x.indexOf("="); if (i < 0) { ensure(/^[A-Za-z_][A-Za-z0-9_]*$/.test(x), () => bad("EINVAL", `export: ${x}`)); (this.s.env(x) === null) && (this.s.setenv(x, "")); } else { ensure(!(i < 1), () => bad("EINVAL", `export: ${x}`)); this.s.setenv(x.slice(0, i), x.slice(i + 1)); } }
@@ -660,32 +586,20 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
         for (const x of a) { const i = x.indexOf("="); if (i < 1) { const v = (this.aliases.get(x) ?? null); if (v) await this.s.out(`alias ${x}=${this.quote(v)}\n`); else return 1; } else this.aliases.set(x.slice(0, i), x.slice(i + 1)); }
         return 0;
       case "unalias": for (const x of a) this.aliases.delete(x); return 0;
-      case "history": {
-        if ((a[0] ?? null) === "-c") { await this.clearHistory(); return 0; }
-        if ((a[0] ?? null) === "-w") { await this.saveHistory(); return 0; }
-        if ((a[0] ?? null) === "-d") { const n=Number.parseInt(a[1]??"",10); ensure(!(!Number.isSafeInteger(n)||n<1||n>this.hist.length), () => bad("EINVAL","history index")); this.hist.splice(n-1,1); await this.saveHistory(); return 0; }
-        const count=(a[0] ?? null)===null?this.hist.length:Number.parseInt((requireValue(a[0] ?? null, "src/sh/shell.ts:637")),10); if(!Number.isSafeInteger(count)||count<0) bad("EINVAL","history count");
-        const start=Math.max(0,this.hist.length-count); for(let i=start;i<this.hist.length;i++) await this.s.out(`${String(i+1).padStart(5)}  ${requireValue(this.hist[i] ?? null, "src/sh/shell.ts:625").replace(/\n/g,"\\n")}\n`); return 0;
-      }
-      case "prefs": {
-        if (!a.length) { await this.s.out(prefsText(this.prefs)); return 0; }
-        if ((a[0] ?? null) === "reload") { const warnings=this.reloadPreferences(); for(const w of warnings) await this.s.err(`prefs: ${w}\n`); return warnings.length?1:0; }
-        if ((a[0] ?? null) === "get") { const key=(a[1] ?? null) as keyof ShellPrefs|null; ensure(!(!key||!PREF_KEYS.includes(key)), () => bad("EINVAL","prefs key")); const value=this.prefs[requireValue(key, "src/sh/shell.ts:630")]; await this.s.out(`${requireValue(key, "src/sh/shell.ts:630")}=${Array.isArray(value)?JSON.stringify(value.join(",")):typeof value==="string"?JSON.stringify(value):String(value)}\n`); return 0; }
-        if ((a[0] ?? null) === "set") { ensure(!(this.s.uid!==0), () => bad("EPERM","prefs set")); const key=(a[1] ?? null) as keyof ShellPrefs|null,value=a.slice(2).join(" "); ensure(!(!key||!PREF_KEYS.includes(key)||!value), () => bad("EINVAL","usage: prefs set key value")); const current=this.maybeRead("/opt/prefs")??""; this.s.write("/opt/prefs",updatePrefsText(current,requireValue(key, "src/sh/shell.ts:631"),value),false,0o644);this.s.chmod("/opt/prefs",0o644);const warnings=this.reloadPreferences();for(const w of warnings)await this.s.err(`prefs: ${w}\n`);return warnings.length?1:0; }
-        bad("EINVAL","usage: prefs [get key|set key value|reload]");
-      }
+      case "history": return this.historyBuiltin(a);
+      case "prefs": return this.preferencesBuiltin(a);
       case "jobs": return this.showJobs();
       case "fg": {
-        const requested = a[0] ?? null;
+        const requested = firstArgument(a);
         if (requested !== null) return this.foreground(requested);
         let last = 0;
         for (const id of this.jobs.keys()) last = id;
         return this.foreground(`%${last}`);
       }
-      case "wait": return this.waitJob((a[0] ?? null));
+      case "wait": return this.waitJob((firstArgument(a)));
       case "umask":
         if (!a.length) await this.s.out(this.s.umask.toString(8).padStart(4, "0") + "\n");
-        else { const n = Number.parseInt(requireValue(a[0] ?? null, "src/sh/shell.ts:639"), 8); ensure(Number.isFinite(n), () => bad("EINVAL", (requireValue(a[0] ?? null, "src/sh/shell.ts:652")))); this.s.umask = n & 0o777; }
+        else { const n = Number.parseInt(requireValue(firstArgument(a), "src/sh/shell.ts:639"), 8); ensure(Number.isFinite(n), () => bad("EINVAL", (requireValue(firstArgument(a), "src/sh/shell.ts:652")))); this.s.umask = n & 0o777; }
         return 0;
       case "reboot": this.s.reboot(); return 0;
       case "exit": case "logout": {
@@ -695,6 +609,88 @@ default: { io.serr = new FsOut(this.s, p, r.mode === "a"); }
       }
       default: return 127;
     }
+  }
+
+
+  private async commandBuiltin(a: string[]): Promise<number> {
+    // Options belong to command itself; the remaining words bypass aliases.
+    // Keep an overridden PATH active through awaited built-ins and children.
+    let describe: "path" | "verbose" | null = null;
+    let defaultPath = false, index = 0;
+    for (const option of a) {
+      if (option === "--") { index++; break; }
+      if (option === "-p") { defaultPath = true; index++; continue; }
+      if (option === "-v" || option === "-V") {
+        describe = option === "-v" ? "path" : "verbose";
+        index++;
+        continue;
+      }
+      if (option.startsWith("-")) {
+        await this.s.err(`command: unsupported option: ${option}\n`);
+        return 2;
+      }
+      break;
+    }
+    const names = a.slice(index), oldPath = this.s.env("PATH");
+    if (defaultPath) this.s.setenv("PATH", "/bin:/usr/bin");
+    try {
+      return describe === null ? await this.invokeCommand(names) : await this.describeCommands(names, describe);
+    } finally {
+      if (defaultPath) this.restoreCommandPath(oldPath);
+    }
+  }
+
+  private restoreCommandPath(path: string | null): void {
+    if (path === null) { this.s.unset("PATH"); return; }
+    this.s.setenv("PATH", path);
+  }
+
+  private async describeCommands(names: readonly string[], mode: "path" | "verbose"): Promise<number> {
+    let failed = false;
+    for (const target of names) {
+      if (built.has(target)) {
+        await this.s.out(mode === "path" ? `${target}\n` : `${target} is a shell built-in\n`);
+        continue;
+      }
+      try {
+        const path = this.s.which(target);
+        await this.s.out(mode === "path" ? `${path}\n` : `${target} is ${path}\n`);
+      } catch { failed = true; }
+    }
+    return failed ? 1 : 0;
+  }
+
+  private async invokeCommand(names: readonly string[]): Promise<number> {
+    const target = firstArgument(names), args = names.slice(1);
+    if (target === null) return 0;
+    if (built.has(target)) return this.bi(target, args);
+    try { this.s.which(target); }
+    catch {
+      await this.s.err(`command: ${target}: not found\n`);
+      return 127;
+    }
+    const process = this.s.start(target, args, { fds: null, pgid: null, cwd: null,
+      io: this.base(), env: this.s.env() as Map<string, string> });
+    try { return await process.done; }
+    finally { this.s.reap(process.pid); }
+  }
+
+  private async historyBuiltin(a: string[]): Promise<number> {
+        if ((firstArgument(a)) === "-c") { await this.clearHistory(); return 0; }
+        if ((firstArgument(a)) === "-w") { await this.saveHistory(); return 0; }
+        if ((firstArgument(a)) === "-d") { const n=Number.parseInt(a[1]??"",10); ensure(!(!Number.isSafeInteger(n)||n<1||n>this.hist.length), () => bad("EINVAL","history index")); this.hist.splice(n-1,1); await this.saveHistory(); return 0; }
+        const count=(firstArgument(a))===null?this.hist.length:Number.parseInt((requireValue(firstArgument(a), "src/sh/shell.ts:637")),10); if(!Number.isSafeInteger(count)||count<0) bad("EINVAL","history count");
+        const start=Math.max(0,this.hist.length-count); for(let i=start;i<this.hist.length;i++) await this.s.out(`${String(i+1).padStart(5)}  ${requireValue(this.hist[i] ?? null, "src/sh/shell.ts:625").replace(/\n/g,"\\n")}\n`); return 0;
+
+  }
+
+  private async preferencesBuiltin(a: string[]): Promise<number> {
+        if (!a.length) { await this.s.out(prefsText(this.prefs)); return 0; }
+        if ((firstArgument(a)) === "reload") { const warnings=this.reloadPreferences(); for(const w of warnings) await this.s.err(`prefs: ${w}\n`); return warnings.length?1:0; }
+        if ((firstArgument(a)) === "get") { const key=(a[1] ?? null) as keyof ShellPrefs|null; ensure(!(!key||!PREF_KEYS.includes(key)), () => bad("EINVAL","prefs key")); const value=this.prefs[requireValue(key, "src/sh/shell.ts:630")]; await this.s.out(`${requireValue(key, "src/sh/shell.ts:630")}=${Array.isArray(value)?JSON.stringify(value.join(",")):typeof value==="string"?JSON.stringify(value):String(value)}\n`); return 0; }
+        if ((firstArgument(a)) === "set") { ensure(!(this.s.uid!==0), () => bad("EPERM","prefs set")); const key=(a[1] ?? null) as keyof ShellPrefs|null,value=a.slice(2).join(" "); ensure(!(!key||!PREF_KEYS.includes(key)||!value), () => bad("EINVAL","usage: prefs set key value")); const current=this.maybeRead("/opt/prefs")??""; this.s.write("/opt/prefs",updatePrefsText(current,requireValue(key, "src/sh/shell.ts:631"),value),false,0o644);this.s.chmod("/opt/prefs",0o644);const warnings=this.reloadPreferences();for(const w of warnings)await this.s.err(`prefs: ${w}\n`);return warnings.length?1:0; }
+        return bad("EINVAL","usage: prefs [get key|set key value|reload]");
+
   }
 
   private async showJobs(): Promise<number> {

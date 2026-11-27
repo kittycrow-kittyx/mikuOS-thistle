@@ -1,3 +1,4 @@
+import { firstArgument, takeArgument } from "../core/arguments.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
 import { App } from "../../thistle/src/apps/base.js";
@@ -24,9 +25,9 @@ export class Kill extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     let sig: Sig = 15;
     switch (true) {
-case !!((withValue((a[0] ?? null), value => value.startsWith("-S")))): {  const x = requireValue(a.shift() ?? null, "src/apps/proc.ts:24").slice(1); sig = x === "SIGKILL" ? 9 : x === "SIGINT" ? 2 : x === "SIGPIPE" ? 13 : x === "SIGHUP" ? 1 : 15;
+case !!((withValue((firstArgument(a)), value => value.startsWith("-S")))): {  const x = requireValue(takeArgument(a), "src/apps/proc.ts:24").slice(1); sig = x === "SIGKILL" ? 9 : x === "SIGINT" ? 2 : x === "SIGPIPE" ? 13 : x === "SIGHUP" ? 1 : 15;
 break; }
-case !!(/^-(1|2|9|13|15)$/.test(a[0] ?? "")): { sig = Number(requireValue(a.shift() ?? null, "src/apps/proc.ts:25").slice(1)) as Sig;
+case !!(/^-(1|2|9|13|15)$/.test(a[0] ?? "")): { sig = Number(requireValue(takeArgument(a), "src/apps/proc.ts:25").slice(1)) as Sig;
 break; }
 }
     if (!a.length) bad("EINVAL", "kill: missing pid");
@@ -52,7 +53,7 @@ export class Time extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     if (!a.length) bad("EINVAL", "time: command required");
     const t = performance.now();
-    const p = s.start(requireValue(a[0] ?? null, "src/apps/proc.ts:49"), a.slice(1));
+    const p = s.start(requireValue(firstArgument(a), "src/apps/proc.ts:49"), a.slice(1));
     const n = await s.wait(p.pid);
     await s.err(`\nreal\t${((performance.now() - t) / 1000).toFixed(3)}s\n`);
     return n;

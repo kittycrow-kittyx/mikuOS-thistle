@@ -148,6 +148,9 @@ export const identity = (k: Kern, overwrite = true): void => {
   f("/boot/thistle.yaml", boot);
 };
 
+/** Install distribution defaults before overlay restoration. Temporary paths
+ * remain writable to guests, /root remains private, and generated tool examples
+ * retain the upstream assembler and linker formats used by compatibility guests. */
 export const image = (k: Kern): void => {
   const d = (p: string, mode = 0o755): void => { k.fs.mkdir(p, k.fs.authority, mode); };
   const f = (p: string, x: string | Uint8Array, mode = 0o644): void => { k.fs.mkfile(p, x, k.fs.authority, mode); };

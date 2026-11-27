@@ -1,3 +1,4 @@
+import { firstArgument, takeArgument } from "../core/arguments.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
@@ -9,7 +10,6 @@ import { size } from "./util.js";
 import { Shell } from "../sh/shell.js";
 import { LineEditor } from "../sh/editor.js";
 import type { Tty } from "../../thistle/src/io/tty.js";
-import { Exe, codec, isExe, isObj } from "../../thistle/thistle-asm/fmt.js";
 
 export class TrueApp extends App {
   constructor() { super("true", "Return a successful exit status."); }
@@ -25,8 +25,8 @@ export class Env extends App {
   constructor() { super("env", "Print an environment or run with modified values.", "env [NAME=value ...] [command [arg ...]]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
     const e = s.env() as Map<string, string>;
-    while ((withValue((a[0] ?? null), value => value.includes("=")))) { const x = requireValue(a.shift() ?? null, "src/apps/sys.ts:25"); const i = x.indexOf("="); e.set(x.slice(0, i), x.slice(i + 1)); }
-    if (a.length) { const p = s.start(requireValue(a[0] ?? null, "src/apps/sys.ts:26"), a.slice(1), {"io": null, "fds": null, "pgid": null, "cwd": null,  env: e }); return s.wait(p.pid); }
+    while ((withValue((firstArgument(a)), value => value.includes("=")))) { const x = requireValue(takeArgument(a), "src/apps/sys.ts:25"); const i = x.indexOf("="); e.set(x.slice(0, i), x.slice(i + 1)); }
+    if (a.length) { const p = s.start(requireValue(firstArgument(a), "src/apps/sys.ts:26"), a.slice(1), {"io": null, "fds": null, "pgid": null, "cwd": null,  env: e }); return s.wait(p.pid); }
     for (const [k, v] of [...e].sort()) await s.out(`${k}=${v}\n`);
     return 0;
   }
@@ -98,7 +98,7 @@ export class Uptime extends App {
 
 export class Hostname extends App {
   constructor() { super("hostname", "Get or set the kernel host name.", "hostname [name]"); }
-  override async run(s: Sys, a: string[]): Promise<number> { if ((a[0] ?? null)) { ensure(!(s.euid), () => bad("EPERM", "hostname")); s.k.host = requireValue(a[0] ?? null, "hostname"); s.setenv("HOSTNAME", (requireValue(a[0] ?? null, "src/apps/sys.ts:87"))); } else await s.out(s.k.host + "\n"); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { if ((firstArgument(a))) { ensure(!(s.euid), () => bad("EPERM", "hostname")); s.k.host = requireValue(firstArgument(a), "hostname"); s.setenv("HOSTNAME", (requireValue(firstArgument(a), "src/apps/sys.ts:87"))); } else await s.out(s.k.host + "\n"); return 0; }
 }
 
 export class Dmesg extends App {
@@ -136,7 +136,7 @@ export class Help extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     // Shell input is consumed in the selected script or interactive-session mode.
     //@cg-expect-warning
-    if ((a[0] ?? null)) { const apps = s.apps(), index = apps.findIndex(v => v.name === (a[0] ?? null)); if (index < 0) return 1; const x = requireValue(apps[index] ?? null, "help command"); await s.out(`${x.name}: ${x.desc}\nusage: ${x.use}\n`); return 0; }
+    if ((firstArgument(a))) { const apps = s.apps(), index = apps.findIndex(v => v.name === (firstArgument(a))); if (index < 0) return 1; const x = requireValue(apps[index] ?? null, "help command"); await s.out(`${x.name}: ${x.desc}\nusage: ${x.use}\n`); return 0; }
     await s.out("mikuOS userland commands:\n\n");
     const q = s.apps();
     for (let i = 0; i < q.length; i += 3) await s.out(q.slice(i, i + 3).map(x => x.name.padEnd(12)).join("") + "\n");
@@ -145,25 +145,6 @@ export class Help extends App {
   }
 }
 
-export class FileApp extends App {
-  constructor() { super("file", "Identify executable and data formats.", "file path ..."); }
-  // App.run is the required polymorphic command entry point, including stateless commands.
-  //@cg-expect-warning
-  override async run(s: Sys, a: string[]): Promise<number> {
-    for (const p of a) {
-      const st = s.stat(p, false); let k: string = st.kind;
-      if (st.kind === "file") { const b = s.readb(p); const x = dec(b.slice(0, 80)); switch (true) {
-case !!((b[0] ?? null) === 0 && (b[1] ?? null) === 0x61 && (b[2] ?? null) === 0x73 && (b[3] ?? null) === 0x6d): { k = "WebAssembly binary module";
-break; }
-case !!(isExe(b) || isObj(b)): {  const q = codec.unpack(b); k = `Thistle ${q.machine}${q instanceof Exe ? ` ${q.isa}` : ""} ${isExe(b) ? "native executable" : "relocatable object"}`;
-break; }
-default: { k = x.startsWith("#!") ? `script, ${(x.split("\n")[0] ?? null)}` : b.every(v => v === 9 || v === 10 || v === 13 || v >= 32 && v < 127) ? "UTF-8 text" : "data"; }
-} }
-      await s.out(`${p}: ${k}\n`);
-    }
-    return a.length ? 0 : 1;
-  }
-}
 
 export class Thsh extends App {
   constructor(name = "thsh") { super(name, "Run the Thistle command shell.", `${name} [-c command] [script [arg ...]]`); }
@@ -171,13 +152,11 @@ export class Thsh extends App {
   //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
     const sh = new Shell(s);
-    if ((a[0] ?? null) === "-c") return sh.run(a.slice(1).join(" "), false);
-    if ((a[0] ?? null)) {
-      const p = requireValue(a.shift() ?? null, "src/apps/sys.ts:154");
+    if ((firstArgument(a)) === "-c") return sh.run(a.slice(1).join(" "), false);
+    if ((firstArgument(a))) {
+      const p = requireValue(takeArgument(a), "src/apps/sys.ts:154");
       s.setenv("0", p); s.setenv("#", String(a.length)); s.setenv("*", a.join(" ")); a.forEach((x, i) => s.setenv(String(i + 1), x));
-      const q = s.read(p).split("\n");
-      ((withValue((q[0] ?? null), value => value.startsWith("#!")))) && (q.shift() ?? null);
-      return sh.run(q.join("\n"), false);
+      return sh.run(s.read(p).replace(/^#![^\n]*(?:\n|$)/, ""), false);
     }
     sh.ensureUserState(true);
 
@@ -269,14 +248,23 @@ export class Thsh extends App {
 
 const truth = (s: Sys, a: string[]): boolean => {
   if (!a.length) return false;
-  if ((a[0] ?? null) === "!") return !truth(s, a.slice(1));
-  if (a.length === 1) return !!(a[0] ?? null);
-  if ((a[0] ?? null) === "-e") { try { s.stat(requireValue(a[1] ?? null, "src/apps/sys.ts:249")); return true; } catch { return false; } }
-  if ((a[0] ?? null) === "-f" || (a[0] ?? null) === "-d") { try { return s.stat(requireValue(a[1] ?? null, "src/apps/sys.ts:250")).kind === ((a[0] ?? null) === "-f" ? "file" : "dir"); } catch { return false; } }
-  if ((a[0] ?? null) === "-r" || (a[0] ?? null) === "-w" || (a[0] ?? null) === "-x") { try { const m = s.stat(requireValue(a[1] ?? null, "src/apps/sys.ts:251")).mode; return !!(m & ((a[0] ?? null) === "-r" ? 0o444 : (a[0] ?? null) === "-w" ? 0o222 : 0o111)); } catch { return false; } }
-  if (a.length === 2 && ((a[0] ?? null) === "-n" || (a[0] ?? null) === "-z")) return (a[0] ?? null) === "-n" ? !!(a[1] ?? null) : !(a[1] ?? null);
-  if (["=", "==", "!="].includes(a[1] ?? "")) return (a[1] ?? null) === "!=" ? (a[0] ?? null) !== (a[2] ?? null) : (a[0] ?? null) === (a[2] ?? null);
-  if (["-eq", "-ne", "-lt", "-le", "-gt", "-ge"].includes(a[1] ?? "")) { const x = Number((a[0] ?? null)), y = Number((a[2] ?? null)); return (a[1] ?? null) === "-eq" ? x === y : (a[1] ?? null) === "-ne" ? x !== y : (a[1] ?? null) === "-lt" ? x < y : (a[1] ?? null) === "-le" ? x <= y : (a[1] ?? null) === "-gt" ? x > y : x >= y; }
+  // test consumes at most three operands. Every slot has a defined nullable
+  // value before dispatch, rather than repeatedly probing an unchecked array.
+  const operands: [string | null, string | null, string | null] = [null, null, null];
+  let position = 0;
+  for (const argument of a) {
+    if (position === 3) break;
+    operands[position++] = argument;
+  }
+  const [first, second, third] = operands;
+  if (first === "!") return !truth(s, a.slice(1));
+  if (a.length === 1) return !!first;
+  if (first === "-e") { try { s.stat(requireValue(second, "src/apps/sys.ts:249")); return true; } catch { return false; } }
+  if (first === "-f" || first === "-d") { try { return s.stat(requireValue(second, "src/apps/sys.ts:250")).kind === (first === "-f" ? "file" : "dir"); } catch { return false; } }
+  if (first === "-r" || first === "-w" || first === "-x") { try { const m = s.stat(requireValue(second, "src/apps/sys.ts:251")).mode; return !!(m & (first === "-r" ? 0o444 : first === "-w" ? 0o222 : 0o111)); } catch { return false; } }
+  if (a.length === 2 && (first === "-n" || first === "-z")) return first === "-n" ? !!second : !second;
+  if (["=", "==", "!="].includes(second ?? "")) return second === "!=" ? first !== third : first === third;
+  if (["-eq", "-ne", "-lt", "-le", "-gt", "-ge"].includes(second ?? "")) { const x = Number(first), y = Number(third); return second === "-eq" ? x === y : second === "-ne" ? x !== y : second === "-lt" ? x < y : second === "-le" ? x <= y : second === "-gt" ? x > y : x >= y; }
   return false;
 };
 
@@ -288,7 +276,7 @@ export class TestApp extends App {
 export class Expr extends App {
   constructor() { super("expr", "Evaluate a simple integer or string expression.", "expr value operator value"); }
   override async run(s: Sys, a: string[]): Promise<number> {
-    if (a.length === 1) { await s.out((a[0] ?? null) + "\n"); return (a[0] ?? null) === "0" || !(a[0] ?? null) ? 1 : 0; }
+    if (a.length === 1) { await s.out((firstArgument(a)) + "\n"); return (firstArgument(a)) === "0" || !(firstArgument(a)) ? 1 : 0; }
     if (a.length !== 3) bad("EINVAL", "expr: three terms required");
     const [x, op, y] = a as [string, string, string]; let z: string | number;
     if (["+", "-", "*", "/", "%"].includes(op)) { const l = Number(x), r = Number(y); ensure(!(!Number.isFinite(l) || !Number.isFinite(r) || ((op === "/" || op === "%") && !r)), () => bad("EINVAL", "arithmetic")); z = op === "+" ? l + r : op === "-" ? l - r : op === "*" ? l * r : op === "/" ? Math.trunc(l / r) : l % r; }

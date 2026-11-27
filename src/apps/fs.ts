@@ -1,3 +1,4 @@
+import { firstArgument, takeArgument } from "../core/arguments.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
@@ -228,7 +229,7 @@ export class Mv extends App {
 
 export class Ln extends App {
   constructor() { super("ln", "Create hard or symbolic links.", "ln [-s] target link"); }
-  override async run(s: Sys, a: string[]): Promise<number> { const sym = (a[0] ?? null) === "-s"; if (sym) a.shift(); if (a.length !== 2) bad("EINVAL", "ln: target and link required"); sym ? s.symlink(requireValue(a[0] ?? null, "src/apps/fs.ts:158"), requireValue(a[1] ?? null, "src/apps/fs.ts:158")) : s.link(requireValue(a[0] ?? null, "src/apps/fs.ts:158"), requireValue(a[1] ?? null, "src/apps/fs.ts:158")); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { const sym = (firstArgument(a)) === "-s"; if (sym) a.shift(); if (a.length !== 2) bad("EINVAL", "ln: target and link required"); sym ? s.symlink(requireValue(firstArgument(a), "src/apps/fs.ts:158"), requireValue(a[1] ?? null, "src/apps/fs.ts:158")) : s.link(requireValue(firstArgument(a), "src/apps/fs.ts:158"), requireValue(a[1] ?? null, "src/apps/fs.ts:158")); return 0; }
 }
 
 export class Readlink extends App {
@@ -258,18 +259,18 @@ const symMode = (old: number, x: string): number => {
 
 export class Chmod extends App {
   constructor() { super("chmod", "Change file mode bits.", "chmod mode path ..."); }
-  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chmod arguments"); const m = requireValue(a.shift() ?? null, "src/apps/fs.ts:188"); for (const p of a) s.chmod(p, /^[0-7]+$/.test(m) ? Number.parseInt(m, 8) : symMode(s.stat(p, false).mode, m)); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chmod arguments"); const m = requireValue(takeArgument(a), "src/apps/fs.ts:188"); for (const p of a) s.chmod(p, /^[0-7]+$/.test(m) ? Number.parseInt(m, 8) : symMode(s.stat(p, false).mode, m)); return 0; }
 }
 
 export class Chown extends App {
   constructor() { super("chown", "Change file owner and group.", "chown uid[:gid] path ..."); }
-  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chown arguments"); const parts = requireValue(a.shift() ?? null, "chown owner").split(":"); const u = parts[0] ?? "", g = parts[1] ?? null; const uid = Number(u), gid = g === null ? uid : Number(g); if (!Number.isInteger(uid) || !Number.isInteger(gid)) bad("EINVAL", "numeric ids required"); for (const p of a) s.chown(p, uid, gid); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chown arguments"); const parts = requireValue(takeArgument(a), "chown owner").split(":"); const u = parts[0] ?? "", g = parts[1] ?? null; const uid = Number(u), gid = g === null ? uid : Number(g); if (!Number.isInteger(uid) || !Number.isInteger(gid)) bad("EINVAL", "numeric ids required"); for (const p of a) s.chown(p, uid, gid); return 0; }
 }
 
 export class Find extends App {
   constructor() { super("find", "Walk a directory tree.", "find [path] [-name glob] [-type f|d|l]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
-    const root = (a[0] ?? null) && !requireValue((a[0] ?? null), "src/apps/fs.ts:201").startsWith("-") ? requireValue(a.shift() ?? null, "src/apps/fs.ts:199") : ".";
+    const root = (firstArgument(a)) && !requireValue((firstArgument(a)), "src/apps/fs.ts:201").startsWith("-") ? requireValue(takeArgument(a), "src/apps/fs.ts:199") : ".";
     const ni = a.indexOf("-name"), ti = a.indexOf("-type");
     const rx = ni >= 0 ? globRx(a[ni + 1] ?? "") : null;
     const ty = ti >= 0 ? (a[ti + 1] ?? null) : null;

@@ -1135,6 +1135,42 @@ test("command and colon are handled inside /bin/thsh", async () => {
   }
 });
 
+test("test expressions preserve absent, empty, string, numeric and file operands", async () => {
+  const rig = await Rig.create();
+  const cases: Array<[string, number]> = [
+    ["test", 1], ["test ''", 1], ["test nonempty", 0],
+    ["test ! ''", 0], ["test ! value", 1],
+    ["test a = a", 0], ["test a != a", 1],
+    ["test 2 -gt 1", 0], ["test 2 -lt 1", 1],
+    ["test -n ''", 1], ["test -z ''", 0],
+    ["test -e /etc/passwd", 0], ["test -e /missing", 1],
+    ["test -f", 0], ["test -f ''", 1], ["[ a = a ]", 0],
+  ];
+  for (const [command, expected] of cases) assert.equal((await rig.run(command)).code, expected, command);
+});
+
+test("shell built-ins restore canonical descriptors and temporary PATH on failure", async () => {
+  const rig = await Rig.create(), descriptors = rig.os.p.fds.size;
+  for (const [command, status] of [
+    ["export MARK=present; command -v true", 0],
+    ["command :", 0], ["echo $(printf nested)", 0],
+    ["alias probe=echo; unalias probe", 0],
+    ["umask invalid", 2], ["command no-such-program", 127],
+  ] as const) {
+    assert.equal((await rig.run(command)).code, status, command);
+    assert.equal(rig.os.p.fds.size, descriptors, command);
+  }
+  rig.os.s.setenv("PATH", "/missing");
+  assert.equal((await rig.run("command -p -v true")).out, "/bin/true\n");
+  assert.equal(rig.os.s.env("PATH"), "/missing");
+  assert.equal((await rig.run("command -p no-such-program")).code, 127);
+  assert.equal(rig.os.s.env("PATH"), "/missing");
+  rig.os.s.unset("PATH");
+  assert.equal((await rig.run("command -p -v true")).out, "/bin/true\n");
+  assert.equal(rig.os.s.env("PATH"), null);
+  assert.equal(rig.os.p.fds.size, descriptors);
+});
+
 test("GNU head dd od and Bash are actual pre-built THX2 guest executables", async () => {
   const file = await import("node:fs/promises");
   const r = (await Rig.create());

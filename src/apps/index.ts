@@ -1,9 +1,10 @@
+import { FileApp } from "./file.js";
 import type { Kern } from "../../thistle/src/core/kernel.js";
 import { rootEntryKind, rootPathKind } from "../main/root-files.js";
 import { BaseName, Cat, Chmod, Chown, Cp, DirName, Find, Ln, Ls, Mkdir, Mv, Pwd, Readlink, Rm, Rmdir, StatApp, Touch } from "./fs.js";
 import { Base64, Cut, Echo, Grep, Printf, Sed, Seq, Sort, Strings, Tail, Tee, Tr, Uniq, Wc, Yes } from "./text.js";
 import { Kill, Ps, Sleep, Time } from "./proc.js";
-import { Clear, DateApp, Df, Dmesg, Env, Expr, FalseApp, FileApp, Free, Help, Hostname, Id, Mount, PrintEnv, TestApp, Thsh, TrueApp, Uname, Uptime, Which, Whoami } from "./sys.js";
+import { Clear, DateApp, Df, Dmesg, Env, Expr, FalseApp, Free, Help, Hostname, Id, Mount, PrintEnv, TestApp, Thsh, TrueApp, Uname, Uptime, Which, Whoami } from "./sys.js";
 import { Wget } from "./net.js";
 import { AsApp, DisApp, Elf2ThxApp, LdApp, NmApp, ObjdumpApp, SizeApp } from "./asm.js";
 

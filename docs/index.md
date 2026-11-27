@@ -3,12 +3,14 @@
 The [architecture](architecture.md) describes the runtime and kernel boundary. See [build instructions](build.md) for preparing the host tools and validating source changes.
 
 - [core/identity](modules/core/identity.md)
+- [core/arguments](modules/core/arguments.md)
 - [core/release](modules/core/release.md)
 - [tool/host](modules/tool/host.md)
 - [tool/elf2thx](modules/tool/elf2thx.md)
 - [sh/history](modules/sh/history.md)
 - [sh/keys](modules/sh/keys.md)
 - [apps/util](modules/apps/util.md)
+- [apps/file](modules/apps/file.md)
 - [test/toolchain](modules/test/toolchain.md)
 - [tool/release](modules/tool/release.md)
 
