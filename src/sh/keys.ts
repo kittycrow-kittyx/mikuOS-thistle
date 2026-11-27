@@ -62,7 +62,7 @@ const hexSequence = (name: string): string | null => {
   const match = /^hex:(.*)$/i.exec(name.trim());
   if (!match) return null;
 
-  const value = (match[1] ?? "").replace(/(?:0x|[^0-9a-f])/gi, "");
+  const value = match[0].slice(4).replace(/(?:0x|[^0-9a-f])/gi, "");
   if (!value || value.length % 2 !== 0) return null;
 
   const bytes: number[] = [];

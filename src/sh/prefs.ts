@@ -97,7 +97,7 @@ const unquote = (input: string): string => {
   const value = input.trim();
   if (
     value.length >= 2 &&
-    (((value[0] ?? null) === '"' && (value.at(-1) ?? null) === '"') || ((value[0] ?? null) === "'" && (value.at(-1) ?? null) === "'"))
+    ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))
   ) {
     return value.slice(1, -1)
       .replace(/\\n/g, "\n")

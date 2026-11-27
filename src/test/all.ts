@@ -1,10 +1,11 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
 import { BootRenderer } from "../boot/display.js";
-import { Elf, ElfErr } from "../elf/elf.js";
+import { Elf, ElfErr, isElf } from "../elf/elf.js";
 import { createHash } from "node:crypto";
 import { parseJson } from "../core/json.js";
 import { defaultPrefs, parsePrefs } from "../sh/prefs.js";
+import { keySequences } from "../sh/keys.js";
 import assert from "node:assert/strict";
 import { hostModule } from "../main/host-module.js";
 import { withValue } from "../../thistle/src/core/err.js";
@@ -134,6 +135,34 @@ test("preference validation reports input errors without mutating existing setti
   assert.equal(valid.prefs.defaultScriptLang, "bash");
   assert.equal(initial.historySize, 17);
   assert.equal(initial.completionListLimit, 9);
+});
+
+test("quoted preferences preserve empty values, escapes and unmatched delimiters", () => {
+  const parsed = parsePrefs('heredocPrompt=""\npromptFormat=\'line\\nnext\'\nautocompleteColour="blue\nfutureSetting=\'retained\'');
+  assert.deepEqual(parsed.warnings, []);
+  assert.equal(parsed.prefs.heredocPrompt, "");
+  assert.equal(parsed.prefs.promptFormat, "line\nnext");
+  assert.equal(parsed.prefs.autocompleteColour, '"blue');
+  assert.equal(parsed.unknown.get("futureSetting") ?? null, "retained");
+});
+
+test("ELF identification honours view bounds and rejects truncated headers", () => {
+  const storage = new Uint8Array(40);
+  storage.set([0x7f, 0x45, 0x4c, 0x46], 8);
+  const header = storage.subarray(8, 24);
+  assert.equal(isElf(header), true);
+  assert.equal(isElf(storage), false);
+  assert.equal(isElf(header.subarray(0, 15)), false);
+  assert.equal(isElf(new Uint8Array()), false);
+  assert.equal(new Elf().parse(header).message, "a.out: truncated ELF header");
+});
+
+test("hex key bindings retain raw sequence validation", () => {
+  assert.deepEqual(keySequences(" Hex: 0x1b 0x5b 0x41 "), ["\x1b[A"]);
+  assert.deepEqual(keySequences("hex:1b5b46"), ["\x1b[F"]);
+  assert.deepEqual(keySequences("hex:1"), []);
+  assert.deepEqual(keySequences("hex:"), []);
+  assert.deepEqual(keySequences("not-a-key"), []);
 });
 const show = <T>(value: T): string => JSON.stringify(value, <V>(_key: string, item: V) => typeof item === "bigint" ? `${item}n` : item) ?? String(value);
 

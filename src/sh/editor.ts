@@ -221,7 +221,7 @@ export class LineEditor {
     }
 
     const suggestion = this.suggestion();
-    const suffix = (withValue(suggestion ?? null, value => value.startsWith(this.line)) ?? null) ? requireValue(suggestion ?? null, "src/sh/editor.ts:222").slice(this.line.length) : "";
+    const suffix = suggestion !== null && suggestion.startsWith(this.line) ? suggestion.slice(this.line.length) : "";
     const colour = suffix && this.host.shell.prefs.colour
       ? this.host.shell.prefs.autocompleteColour === "faint" ? "\x1b[2m" : "\x1b[90m"
       : "";
@@ -246,7 +246,7 @@ export class LineEditor {
     const match = /(^|\s)([^\s]*)$/.exec(source);
     if (!match) return [];
 
-    const prefix = source.slice(0, match.index + requireValue(match[1] ?? null, "src/sh/editor.ts:245").length);
+    const prefix = source.slice(0, source.length - match[0].trimStart().length);
     return candidates.map(candidate => prefix + candidate + (candidate.endsWith("/") ? "" : " "));
   }
 

@@ -31,7 +31,8 @@ const pow2 = (n: number): boolean => {
   return (q & (q - 1n)) === 0n;
 };
 
-export const isElf = (b: Uint8Array): boolean => b.length >= EI_NIDENT && (b[0] ?? null) === 0x7f && (b[1] ?? null) === 0x45 && (b[2] ?? null) === 0x4c && (b[3] ?? null) === 0x46;
+export const isElf = (b: Uint8Array): boolean =>
+  b.length >= EI_NIDENT && new DataView(b.buffer, b.byteOffset, b.byteLength).getUint32(0, false) === 0x7f454c46;
 
 /** Import a linked RV64 executable. Relocating an ELF at runtime is a different job, so dynamic files are refused here. */
 export class Elf {
@@ -46,8 +47,8 @@ export class Elf {
   parse(b: Uint8Array, name = "a.out"): ElfResult {
     if (!isElf(b)) return failure(`${name}: not an ELF file`);
     if (b.length < 64) return failure(`${name}: truncated ELF header`);
-    if ((b[4] ?? null) !== 2 || (b[5] ?? null) !== 1 || (b[6] ?? null) !== 1) return failure(`${name}: expected ELF64 little-endian version 1`);
     const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    if (v.getUint8(4) !== 2 || v.getUint8(5) !== 1 || v.getUint8(6) !== 1) return failure(`${name}: expected ELF64 little-endian version 1`);
     if (v.getUint16(16, true) !== ET_EXEC) return failure(`${name}: only linked ET_EXEC files can become THX`);
     if (v.getUint16(18, true) !== EM_RISCV) return failure(`${name}: expected a RISC-V executable`);
     if (v.getUint32(20, true) !== 1) return failure(`${name}: unsupported ELF version`);

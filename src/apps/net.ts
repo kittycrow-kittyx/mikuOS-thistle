@@ -31,7 +31,8 @@ const num = (s: string, name: string): number => {
 
 const fname = (raw: string): string => {
   const u = new URL(raw);
-  const p = u.pathname.split("/").filter(Boolean).at(-1) ?? "index.html";
+  const trimmed = u.pathname.replace(/\/+$/, "");
+  const p = trimmed.slice(trimmed.lastIndexOf("/") + 1) || "index.html";
   try { return decodeURIComponent(p) || "index.html"; } catch { return p; }
 };
 
