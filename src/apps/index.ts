@@ -1,9 +1,10 @@
+import { FileApp } from "./file.js";
 import type { Kern } from "../../thistle/src/core/kernel.js";
-import { rootFileCred as root, rootEntryKind, rootPathKind } from "../main/root-files.js";
+import { rootEntryKind, rootPathKind } from "../main/root-files.js";
 import { BaseName, Cat, Chmod, Chown, Cp, DirName, Find, Ln, Ls, Mkdir, Mv, Pwd, Readlink, Rm, Rmdir, StatApp, Touch } from "./fs.js";
 import { Base64, Cut, Echo, Grep, Printf, Sed, Seq, Sort, Strings, Tail, Tee, Tr, Uniq, Wc, Yes } from "./text.js";
 import { Kill, Ps, Sleep, Time } from "./proc.js";
-import { Clear, DateApp, Df, Dmesg, Env, Expr, FalseApp, FileApp, Free, Help, Hostname, Id, Mount, PrintEnv, TestApp, Thsh, TrueApp, Uname, Uptime, Which, Whoami } from "./sys.js";
+import { Clear, DateApp, Df, Dmesg, Env, Expr, FalseApp, Free, Help, Hostname, Id, Mount, PrintEnv, TestApp, Thsh, TrueApp, Uname, Uptime, Which, Whoami } from "./sys.js";
 import { Wget } from "./net.js";
 import { AsApp, DisApp, Elf2ThxApp, LdApp, NmApp, ObjdumpApp, SizeApp } from "./asm.js";
 
@@ -18,14 +19,14 @@ const ensureDir = (k: Kern, path: string): void => {
     const parent = current || "/";
     const kind = rootEntryKind(k, parent, part);
     current += `/${part}`;
-    if (kind === null) { k.fs.mkdir(current, "/", root, 0o755); continue; }
-    const stat = k.fs.stat(current, "/", root);
+    if (kind === null) { k.fs.mkdir(current, k.fs.authority, 0o755); continue; }
+    const stat = k.fs.stat(current, k.fs.authority);
     if (stat.kind !== "dir") throw new Error(`${current} is not a directory`);
   }
 };
 
 const alreadyPreserved = (k: Kern, path: string): boolean =>
-  rootPathKind(k, path) !== null && k.fs.stat(path, "/", root).kind === "file";
+  rootPathKind(k, path) !== null && k.fs.stat(path, k.fs.authority).kind === "file";
 
 const writeRootFile = (
   k: Kern,
@@ -37,9 +38,9 @@ const writeRootFile = (
   if (preserve && alreadyPreserved(k, path)) return;
 
   // Vfs.write creates absent regular files, and genuine failures propagate.
-  k.fs.write(path, data, "/", root, false, mode);
-  k.fs.chmod(path, mode, "/", root);
-  k.fs.chown(path, 0, 0, "/", root);
+  k.fs.write(path, data, k.fs.authority, false, mode);
+  k.fs.chmod(path, mode, k.fs.authority);
+  k.fs.chown(path, 0, 0, k.fs.authority);
 };
 
 /**

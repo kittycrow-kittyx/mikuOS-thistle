@@ -9,3 +9,8 @@ Public names: `Ch`, `Host`, `HostState`, `Os`, `boot`.
 `HostState` supplies the asynchronous `restore(os)`, `flush(os)` and `install(os)` callbacks. Hosted construction uses [main/host-state](host-state.md) to provide the actual implementations.
 
 `Os.run` consumes the shell’s explicit exit request and calls the host halt callback. Its existing finalisation still clears busy state, resets terminal input and flushes persistence.
+
+`ready` resolves after canonical root restoration, optional package installation,
+working-directory resolution and user preferences. Direct users of `Os.s` must
+await it before changing credentials or using filesystem services. Boot retains
+no non-root cwd inode while the root image is being restored.

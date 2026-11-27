@@ -1,5 +1,6 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
+import { firstArgument, takeArgument } from "../core/arguments.js";
 import { ensure } from "../../thistle/src/core/err.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
@@ -142,7 +143,7 @@ default: { i++; }
 }
     }
     if (a.length !== 1) bad("EINVAL", "elf2thx: one input ELF is required");
-    const input = requireValue(a[0] ?? null, "elf2thx input");
+    const input = requireValue(firstArgument(a), "elf2thx input");
     const result = elf.parse(s.readb(input), input), x = result.exe;
     if (x === null) return bad("ENOEXEC", result.message ?? "invalid ELF executable");
     const b = codec.pack(x);
@@ -154,7 +155,7 @@ default: { i++; }
 export class DisApp extends ToolApp {
   constructor(name = "dis") { super(name, "Inspect and disassemble Thistle objects and executables.", `${name} [-hdr] file ...`); }
   override async run(s: Sys, av: string[]): Promise<number> {
-    const a = [...av], f = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/asm.ts:110").slice(1) : "d";
+    const a = [...av], f = (withValue((firstArgument(a)), value => value.startsWith("-"))) ? requireValue(takeArgument(a), "src/apps/asm.ts:110").slice(1) : "d";
     if (!a.length) bad("EINVAL", `${this.name}: no input files`);
     for (const p of a) {
       const x = await readBinary(s, p); await s.out(`\n${p}: ${x.machine} ${x.kind === "obj" ? "relocatable object" : "executable"}\n`);
@@ -189,7 +190,7 @@ export class ObjdumpApp extends DisApp { constructor() { super("objdump"); } }
 export class NmApp extends ToolApp {
   constructor() { super("nm", "List symbols in Thistle objects and executables.", "nm [-gun] file ..."); }
   override async run(s: Sys, av: string[]): Promise<number> {
-    const a = [...av], fl = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/asm.ts:143").slice(1) : "";
+    const a = [...av], fl = (withValue((firstArgument(a)), value => value.startsWith("-"))) ? requireValue(takeArgument(a), "src/apps/asm.ts:143").slice(1) : "";
     for (const p of a) {
       if (a.length > 1) await s.out(`\n${p}:\n`);
       const image = await readBinary(s, p);

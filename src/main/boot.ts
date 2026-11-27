@@ -2,8 +2,7 @@
 //@cg-expect-warning
 import type { WasmGuestRunner } from "../../thistle/src/wasm/guest-runner.js";
 import { ensure } from "../../thistle/src/core/err.js";
-import { kernelOptions } from "../native/kernel-options.js";
-import type { KernelOptions } from "../native/kernel-options.js";
+import type { KernelOptions } from "../../thistle/src/core/host-options.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { Kern } from "../../thistle/src/core/kernel.js";
 import { Sys } from "../../thistle/src/core/sys.js";
@@ -52,7 +51,7 @@ export class Os {
 
   constructor(readonly host: Host, net: Net) {
     const config = host.config ?? DEFAULT_CONFIG;
-    this.k = new Kern(kernelOptions(net, config, { lim: host.lim, setId: host.setId ?? false, wasiGuest: host.wasiGuest }));
+    this.k = new Kern({ net, config, lim: host.lim, setId: host.setId ?? false, wasiGuest: host.wasiGuest });
     this.k.ttyFn = (x, e) => { Promise.resolve(host.put(x, e ? "err" : "out")).catch(console.error); };
     image(this.k);
     this.tty = new Tty(
@@ -60,11 +59,15 @@ export class Os {
       n => n === 2 ? this.sh.interrupt() : false,
     );
     this.p = this.k.session({ sin: this.tty.input, sout: this.tty.output, serr: this.tty.error }, host.account ?? config.accounts.cli);
+    // Restore the canonical root before retaining a home-directory inode.
+    // Root replacement deliberately refuses live non-root cwd references.
+    const initialDirectory = this.p.cwd;
+    this.p.cwd = "/";
     this.s = new Sys(this.k, this.p);
     this.sh = new Shell(this.s);
-    this.k.setHalt(() => withValue(host.halt ?? null, callable => callable.call(host)));
+    this.k.setHalt(() => withValue(host.halt, callable => callable.call(host)));
     this.k.log("thsh: interactive session ready");
-    this.ready = this.init();
+    this.ready = this.init(initialDirectory);
   }
 
   async hello(): Promise<void> {
@@ -90,7 +93,7 @@ export class Os {
       const code = await this.sh.run(line, recordHistory, heredocBodies);
       if (this.sh.exitRequested) {
         this.sh.exitRequested = false;
-        withValue(this.host.halt ?? null, callable => callable.call(this.host));
+        withValue(this.host.halt, callable => callable.call(this.host));
       }
       return code;
     }
@@ -125,7 +128,7 @@ export class Os {
   }
 
   private async configureKernelMode(): Promise<void> {
-    withValue(this.host.onBootProgress ?? null, callable => callable.call(this.host, 5));
+    withValue(this.host.onBootProgress, callable => callable.call(this.host, 5));
     this.k.name = "Thistle";
     this.p.env.set("MIKUOS_KERNEL_MODE", "thistle");
     this.p.env.delete("THISTLE_RV_CORE");
@@ -134,12 +137,13 @@ export class Os {
     this.k.executionCore = "Thistle TypeScript";
   }
 
-  private async init(): Promise<void> {
+  private async init(initialDirectory: string): Promise<void> {
     await this.restore();
     await this.configureKernelMode();
-    withValue(this.host.onBootProgress ?? null, callable => callable.call(this.host, 6));
-    this.sh.ensureUserState(true);
+    withValue(this.host.onBootProgress, callable => callable.call(this.host, 6));
     if (this.host.state !== null) await this.host.state.install(this);
+    this.p.cwd = initialDirectory;
+    this.sh.ensureUserState(true);
   }
 
 }

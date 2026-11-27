@@ -1,0 +1,25 @@
+{
+  "extends": "./thistle/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "rootDir": "."
+  },
+  "files": [
+    "thistle/src/native/abi.ts",
+    "thistle/src/native/kernel.ts",
+    "thistle/src/native/vfs.ts",
+    "thistle/src/native/thx.ts",
+    "thistle/src/native/start.ts",
+    "thistle/src/native/types.ts",
+    "thistle/src/native/memory.ts",
+    "thistle/src/native/word.ts",
+    "thistle/src/core/rv64-numbers.ts"
+  ],
+  "include": [],
+  "exclude": []
+}

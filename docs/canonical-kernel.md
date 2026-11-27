@@ -12,4 +12,10 @@ Canonical Thistle owns RV64 syscall integration, sparse guest memory, event poll
 
 The boot check runs in CI after the full build and again from a clean checkout. No timing benchmark is involved.
 
-The boot capability contract receives explicit resource limits from the host adapter. Resource discovery is not part of mikuOS-owned boot policy. The pinned release still includes its own implicit defaults; the consolidated upstream candidate removes those defaults before repinning.
+The boot capability contract reuses Thistle's `KernelOptions` and receives explicit resource limits from `hostLimits()` in the host adapter. mikuOS defines no substitute options contract or default provider. Resource discovery is outside the boot graph.
+
+The integration branch pins the exact consolidated Thistle candidate. Its process credentials, descriptor slots, filesystem namespace and guest memory live in canonical native state. Tests change filesystem identity through the native ABI and observe the permission change through mikuOS, then execute RV64 syscall fixtures in that same memory. Object-constructor identity alone is not used as proof.
+
+During startup the login process stays at the root directory until restoration and optional package installation finish. Its configured working directory is then resolved in the restored namespace. Thistle rejects root replacement while a process retains a non-root cwd. Shell redirections retain and restore descriptors through canonical duplication.
+
+The current milestone is complete Bake lowering of the canonical kernel and mikuOS userspace. Kernel-only lowering, hosted boot and passing behaviour tests are separate evidence. Transpilation, compilation and performance assessment remain later roadmap stages.

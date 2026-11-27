@@ -9,3 +9,9 @@ Public names: `HereDocRequest`, `Shell`.
 History recording and command execution have separate asynchronous failure boundaries. History failure warns once without preventing command execution; command failure reports the error and sets status 2. Here-document preparation retains its existing boundary.
 
 History metadata, backup-name probing, saving and clearing are awaited in sequence. Only ENOENT is treated as absence; other filesystem errors propagate to the existing history or command error boundary. These methods retain the permission checks of `Sys.stat` and `Sys.mv`.
+
+Built-in dispatch delegates command options, command description and execution,
+history operations and preference operations to separate methods. `command -p`
+retains its temporary PATH through the awaited operation and restores either the
+previous value or its absence. Redirection saves native descriptors and restores
+them in finalisation, including command failures and nested substitutions.

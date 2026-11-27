@@ -1,6 +1,6 @@
 import { bad, KErr } from "../../thistle/src/core/err.js";
 import type { Kern } from "../../thistle/src/core/kernel.js";
-import { rootFileCred as r, rootEntryKind, rootPathKind, resetLiveDirectory } from "./root-files.js";
+import { rootEntryKind, rootPathKind, resetLiveDirectory } from "./root-files.js";
 import { dec, enc } from "../../thistle/src/io/stream.js";
 import { apps, refreshBuiltinRescues } from "../apps/index.js";
 import { Asm } from "../../thistle/thistle-asm/asm.js";
@@ -26,19 +26,19 @@ const replaceStockFile = (k: Kern, path: string, oldText: string, newText: strin
     kind = child;
     parent = parent === "/" ? `/${part}` : `${parent}/${part}`;
   }
-  const text = k.fs.read(path, "/", r);
-  if (text === oldText) k.fs.write(path, newText, "/", r);
+  const text = k.fs.read(path, k.fs.authority);
+  if (text === oldText) k.fs.write(path, newText, k.fs.authority);
 };
 
 const addStockLink = (k: Kern, target: string, path: string): void => {
   if (rootPathKind(k, path) !== null) return;
-  try { k.fs.stat(target, "/", r); }
+  try { k.fs.stat(target, k.fs.authority); }
   catch { return; }
-  k.fs.symlink(target, path, "/", r);
+  k.fs.symlink(target, path, k.fs.authority);
 };
 
 const addStockFile = (k: Kern, path: string, text: string, mode = 0o644): void => {
-  if (rootPathKind(k, path) === null) k.fs.mkfile(path, text, "/", r, mode);
+  if (rootPathKind(k, path) === null) k.fs.mkfile(path, text, k.fs.authority, mode);
 };
 
 /** Apply only exact-match stock migrations; missing and user-edited files win. */
@@ -131,11 +131,11 @@ const bootManifest = (k: Kern): string => {
 export const identity = (k: Kern, overwrite = true): void => {
   const f = (p: string, x: string, mode = 0o644): void => {
     try {
-      if (!overwrite && k.fs.stat(p, "/", r).kind === "file") return;
-      k.fs.write(p, x, "/", r, false, mode);
-      k.fs.chmod(p, mode, "/", r);
+      if (!overwrite && k.fs.stat(p, k.fs.authority).kind === "file") return;
+      k.fs.write(p, x, k.fs.authority, false, mode);
+      k.fs.chmod(p, mode, k.fs.authority);
     } catch {
-      k.fs.mkfile(p, x, "/", r, mode);
+      k.fs.mkfile(p, x, k.fs.authority, mode);
     }
   };
   const config = k.config;
@@ -148,14 +148,17 @@ export const identity = (k: Kern, overwrite = true): void => {
   f("/boot/thistle.yaml", boot);
 };
 
+/** Install distribution defaults before overlay restoration. */
 export const image = (k: Kern): void => {
-  const d = (p: string, mode = 0o755): void => { k.fs.mkdir(p, "/", r, mode); };
-  const f = (p: string, x: string | Uint8Array, mode = 0o644): void => { k.fs.mkfile(p, x, "/", r, mode); };
+  // Shared temporary directories permit guest writes; root's home remains private.
+  // Tool examples retain the canonical assembler formats for compatibility guests.
+  const d = (p: string, mode = 0o755): void => { k.fs.mkdir(p, k.fs.authority, mode); };
+  const f = (p: string, x: string | Uint8Array, mode = 0o644): void => { k.fs.mkfile(p, x, k.fs.authority, mode); };
 
   for (const p of ["/bin", "/boot", "/dev", "/etc", "/home", "/proc", "/root", "/run", "/sbin", "/tmp", "/usr", "/var"]) d(p, p === "/tmp" ? 0o777 : p === "/root" ? 0o700 : 0o755);
   for (const p of ["/etc/default", "/etc/skel", "/home/guest", "/proc/net", "/usr/bin", "/usr/include", "/usr/lib", "/usr/libexec", "/usr/libexec/mikuos", "/usr/libexec/mikuos/builtin", "/usr/sbin", "/usr/share", "/usr/share/licenses", "/usr/share/mikuos", "/var/lib", "/var/lib/mikuos", "/var/log", "/var/spool", "/var/spool/mail", "/var/tmp"]) d(p, p.includes("tmp") ? 0o777 : 0o755);
   for (const p of ["/usr/include/thistle", "/usr/include/thistle32", "/usr/lib/thistle", "/usr/lib/thistle32", "/usr/share/thistle", "/usr/share/thistle/examples"]) d(p);
-  k.fs.chown("/home/guest", 1000, 1000, "/", r);
+  k.fs.chown("/home/guest", 1000, 1000, k.fs.authority);
 
   f("/etc/passwd", "root:x:0:0:root:/root:/bin/thsh\nguest:x:1000:1000:Guest:/home/guest:/bin/thsh\n");
   f("/etc/group", "root:x:0:\nusers:x:1000:guest\n");
@@ -166,7 +169,7 @@ export const image = (k: Kern): void => {
   f("/etc/profile", "export PATH=/bin:/usr/bin:/sbin:/usr/sbin\nexport LANG=en_GB.UTF-8\n");
   f("/root/readme.txt", "This home belongs to root. Try the pipelines in /usr/share/examples.thsh.\n", 0o600);
   f("/home/guest/readme.txt", k.config.messages.guestReadme, 0o644);
-  k.fs.chown("/home/guest/readme.txt", 1000, 1000, "/", r);
+  k.fs.chown("/home/guest/readme.txt", 1000, 1000, k.fs.authority);
   f("/usr/share/examples.thsh", "#!/bin/thsh\necho 'three one two two' | tr ' ' '\\n' | sort | uniq -c\nmkdir -p /tmp/thistle-demo\necho 'written through a redirect' > /tmp/thistle-demo/note\ncat /tmp/thistle-demo/note\n", 0o755);
   f("/usr/include/thistle/sys.tas", SYS_TAS);
   f("/usr/include/thistle32/sys.tas", SYS32_TAS);
@@ -178,8 +181,8 @@ export const image = (k: Kern): void => {
   identity(k);
 
   apps(k);
-  k.fs.symlink("/bin/thsh", "/bin/-sh", "/", r);
-  const inc = (name: string): { src: string; file: string } => ({ src: k.fs.read(name, "/", r), file: name });
+  k.fs.symlink("/bin/thsh", "/bin/-sh", k.fs.authority);
+  const inc = (name: string): { src: string; file: string } => ({ src: k.fs.read(name, k.fs.authority), file: name });
   const crt = new Asm(inc, {"defs": {}, "arch": "thistle64",  debug: true }).run(CRT0_TAS, "/usr/lib/thistle/crt0.tas").obj;
   f("/usr/lib/thistle/crt0.to", codec.pack(crt));
   const crt32 = new Asm(inc, {"defs": {},  debug: true, arch: "thistle32" }).run(CRT032_TAS, "/usr/lib/thistle32/crt0.tas").obj;
@@ -190,18 +193,18 @@ export const image = (k: Kern): void => {
     const exe = new Link().run([obj], {"entry": null, "base": null, "mem": null,  names: [`${name}.to`] }).exe;
     const bin = codec.pack(exe);
     f(`/usr/bin/${name}.txe`, bin, 0o755);
-    k.fs.symlink(`/usr/bin/${name}.txe`, `/bin/${name}.txe`, "/", r);
+    k.fs.symlink(`/usr/bin/${name}.txe`, `/bin/${name}.txe`, k.fs.authority);
     if (name === "hello") {
-      k.fs.symlink(`/usr/bin/${name}.txe`, `/usr/bin/${name}.thx`, "/", r);
-      k.fs.symlink(`/usr/bin/${name}.txe`, `/usr/bin/${name}.39`, "/", r);
-      k.fs.symlink(`/usr/bin/${name}.thx`, `/bin/${name}.thx`, "/", r);
-      k.fs.symlink(`/usr/bin/${name}.39`, `/bin/${name}.39`, "/", r);
+      k.fs.symlink(`/usr/bin/${name}.txe`, `/usr/bin/${name}.thx`, k.fs.authority);
+      k.fs.symlink(`/usr/bin/${name}.txe`, `/usr/bin/${name}.39`, k.fs.authority);
+      k.fs.symlink(`/usr/bin/${name}.thx`, `/bin/${name}.thx`, k.fs.authority);
+      k.fs.symlink(`/usr/bin/${name}.39`, `/bin/${name}.39`, k.fs.authority);
     }
   }
   const old = new Asm(inc, {"defs": {},  debug: true, arch: "thistle32" }).run(HELLO32_TAS, "/usr/share/thistle/examples/hello32.tas").obj;
   f("/usr/share/thistle/examples/hello32.to", codec.pack(old));
   f("/usr/bin/hello32.txe", codec.pack(new Link().run([old], {"entry": null, "base": null, "mem": null,  names: ["hello32.to"] }).exe), 0o755);
-  k.fs.symlink("/usr/bin/hello32.txe", "/bin/hello32.txe", "/", r);
+  k.fs.symlink("/usr/bin/hello32.txe", "/bin/hello32.txe", k.fs.authority);
   k.log("vfs: root image mounted read-write");
   k.log("native: thistle64 loader and Thistle 1 compatibility registered");
   k.log("net: HTTP transport registered");
@@ -212,24 +215,24 @@ export const image = (k: Kern): void => {
 export const live = (k: Kern): void => {
   resetLiveDirectory(k, "dev");
   resetLiveDirectory(k, "proc");
-  k.fs.mkdir("/proc/net", "/", r);
+  k.fs.mkdir("/proc/net", k.fs.authority);
   const ro = (): never => bad("EROFS", "read-only device");
   const rnd = (n: number): Uint8Array => { const b = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(b.subarray(i, Math.min(i + 65536, n))); return b; };
 
-  k.fs.char("/dev/null", () => new Uint8Array(), b => b.length, "/", r);
-  k.fs.char("/dev/zero", n => new Uint8Array(n), b => b.length, "/", r, { mode: 0o666, repeat: true });
-  k.fs.char("/dev/random", rnd, b => b.length, "/", r, { mode: 0o444, repeat: true });
-  k.fs.char("/dev/urandom", rnd, b => b.length, "/", r, { mode: 0o444, repeat: true });
-  k.fs.char("/dev/full", () => new Uint8Array(), () => bad("ENOSPC", "/dev/full"), "/", r);
-  k.fs.char("/dev/console", () => new Uint8Array(), b => { k.tty(dec(b), false); return b.length; }, "/", r, { mode: 0o620, repeat: false });
-  k.fs.symlink("/dev/console", "/dev/tty", "/", r);
+  k.fs.char("/dev/null", () => new Uint8Array(), b => b.length, k.fs.authority);
+  k.fs.char("/dev/zero", n => new Uint8Array(n), b => b.length, k.fs.authority, { mode: 0o666, repeat: true });
+  k.fs.char("/dev/random", rnd, b => b.length, k.fs.authority, { mode: 0o444, repeat: true });
+  k.fs.char("/dev/urandom", rnd, b => b.length, k.fs.authority, { mode: 0o444, repeat: true });
+  k.fs.char("/dev/full", () => new Uint8Array(), () => bad("ENOSPC", "/dev/full"), k.fs.authority);
+  k.fs.char("/dev/console", () => new Uint8Array(), b => { k.tty(dec(b), false); return b.length; }, k.fs.authority, { mode: 0o620, repeat: false });
+  k.fs.symlink("/dev/console", "/dev/tty", k.fs.authority);
 
-  k.fs.char("/proc/version", () => enc(`${k.name} version ${k.release} (${k.executionCore}; thistle64; Thistle 1 compat; WebAssembly guest support)\n`), ro, "/", r, { mode: 0o444, repeat: false });
-  k.fs.char("/proc/uptime", () => enc(`${((Date.now() - k.born) / 1000).toFixed(2)} 0.00\n`), ro, "/", r, { mode: 0o444, repeat: false });
-  k.fs.char("/proc/loadavg", () => enc(`0.00 0.00 0.00 ${k.ps().filter(p => p.state === "run").length}/${k.ps().length} ${Math.max(...k.ps().map(p => p.pid))}\n`), ro, "/", r, { mode: 0o444, repeat: false });
-  k.fs.char("/proc/meminfo", () => enc(`MemTotal:       ${Math.floor(k.lim.mem / 1024)} kB\nMemAvailable:   ${Math.floor(k.lim.mem / 1024)} kB\nVfsTotal:       ${Math.floor(k.fs.cap / 1024)} kB\nVfsUsed:        ${Math.floor(k.fs.used() / 1024)} kB\n`), ro, "/", r, { mode: 0o444, repeat: false });
-  k.fs.char("/proc/mounts", () => enc(k.mounts().map(x => `${x.src} ${x.at} ${x.kind} ${x.opt} 0 0`).join("\n") + "\n"), ro, "/", r, { mode: 0o444, repeat: false });
-  k.fs.char("/proc/net/dev", () => enc(`Inter-| Receive | Transmit\n host: ${k.net.rx} ${k.net.tx}\nrequests ${k.net.calls} failed ${k.net.fails}\n`), ro, "/", r, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/version", () => enc(`${k.name} version ${k.release} (${k.executionCore}; thistle64; Thistle 1 compat; WebAssembly guest support)\n`), ro, k.fs.authority, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/uptime", () => enc(`${((Date.now() - k.born) / 1000).toFixed(2)} 0.00\n`), ro, k.fs.authority, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/loadavg", () => enc(`0.00 0.00 0.00 ${k.ps().filter(p => p.state === "run").length}/${k.ps().length} ${Math.max(...k.ps().map(p => p.pid))}\n`), ro, k.fs.authority, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/meminfo", () => enc(`MemTotal:       ${Math.floor(k.lim.mem / 1024)} kB\nMemAvailable:   ${Math.floor(k.lim.mem / 1024)} kB\nVfsTotal:       ${Math.floor(k.fs.cap / 1024)} kB\nVfsUsed:        ${Math.floor(k.fs.used() / 1024)} kB\n`), ro, k.fs.authority, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/mounts", () => enc(k.mounts().map(x => `${x.src} ${x.at} ${x.kind} ${x.opt} 0 0`).join("\n") + "\n"), ro, k.fs.authority, { mode: 0o444, repeat: false });
+  k.fs.char("/proc/net/dev", () => enc(`Inter-| Receive | Transmit\n host: ${k.net.rx} ${k.net.tx}\nrequests ${k.net.calls} failed ${k.net.fails}\n`), ro, k.fs.authority, { mode: 0o444, repeat: false });
   refreshBuiltinRescues(k);
   k.log("devfs: null zero random console ready");
 };

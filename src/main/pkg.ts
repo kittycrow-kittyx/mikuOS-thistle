@@ -1,7 +1,6 @@
 import { ensure } from "../../thistle/src/core/err.js";
 import { readPackage, type PackageEntry as Pe } from "./pkg-format.js";
 import { checksum as hash } from "../core/checksum.js";
-import { rootCred } from "../core/config.js";
 import { hostModule } from "./host-module.js";
 import { requireValue } from "../../thistle/src/core/err.js";
 import type { Kern } from "../../thistle/src/core/kernel.js";
@@ -45,7 +44,7 @@ const unzip = async (b: Uint8Array): Promise<Uint8Array> => {
 /** A root package is an overlay, so upgrading tools never replaces /home or /root. */
 export class RootPkg {
   async install(k: Kern): Promise<boolean> {
-    try { if (k.fs.read("/etc/thistle-toolchain-release", "/", root).trim() === TOOLCHAIN) return false; }
+    try { if (k.fs.read("/etc/thistle-toolchain-release", k.fs.authority).trim() === TOOLCHAIN) return false; }
     // This documented best-effort fallback intentionally continues after the optional operation fails.
     //@cg-expect-warning
     catch { /* First boot, or an older compiler set. */ }
@@ -93,5 +92,4 @@ break; }
   }
 }
 
-const root = rootCred();
 export const rootPkg = new RootPkg();

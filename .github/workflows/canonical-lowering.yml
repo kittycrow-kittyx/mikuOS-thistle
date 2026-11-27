@@ -2,6 +2,7 @@ name: Canonical Bake lowering
 on:
   push:
     branches: [fix/bake-lowering-mikuos]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -36,7 +37,12 @@ jobs:
           git rev-parse HEAD
           git -C thistle rev-parse HEAD
           git -C ../bake rev-parse HEAD
-      - name: Bake canonical boot graph
+      - name: Bake Teto kernel graph as an independent control
+        working-directory: mikuos
+        run: |
+          mkdir -p build/lowering/kernel
+          bun ../bake/src/cli.ts --project tsconfig.bake-kernel.json --out-dir build/lowering/kernel/source --target wasm --engine host --fail-on-warnings --report build/lowering/kernel/bake-report.json
+      - name: Bake complete canonical boot graph including userspace
         working-directory: mikuos
         run: |
           mkdir -p build/lowering
@@ -47,4 +53,11 @@ jobs:
         with:
           name: canonical-bake-report
           path: mikuos/build/lowering/bake-report.json
+          if-no-files-found: warn
+      - name: Upload independent kernel control report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: canonical-kernel-bake-report
+          path: mikuos/build/lowering/kernel/bake-report.json
           if-no-files-found: warn

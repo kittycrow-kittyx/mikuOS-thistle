@@ -1,4 +1,4 @@
-import { Lim } from "../../thistle/src/core/cap.js";
+import { hostLimits } from "../../thistle/src/host/limits.js";
 import { HostWasiRunner } from "../../thistle/src/wasm/host-wasi.js";
 import { hostNet } from "../../thistle/src/net/host-fetch.js";
 import type { Net } from "../../thistle/src/net/net.js";
@@ -18,7 +18,7 @@ export const boot = (host: Pick<Host, "put"> & Partial<Host>, net: Net | null = 
   return start({
     ...resolved,
     state: createHostState(resolved),
-    lim: Lim.host(),
+    lim: hostLimits(),
     wasiGuest: new HostWasiRunner(),
   }, net ?? hostNet());
 };

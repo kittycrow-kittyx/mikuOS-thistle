@@ -62,7 +62,7 @@ const arithmeticNumber = (
   name: string,
   env: Map<string, string>,
 ): bigint => {
-  const raw = (withValue((env.get(name) ?? null) ?? null, value => value.trim()) ?? null) || "0";
+  const raw = (withValue((env.get(name) ?? null), value => value.trim())) || "0";
 
   try {
     return BigInt(raw);
