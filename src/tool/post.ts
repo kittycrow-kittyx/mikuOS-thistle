@@ -4,42 +4,12 @@ import { Asm } from "../../thistle/thistle-asm/asm.js";
 import { Link } from "../../thistle/thistle-asm/link.js";
 import { codec, Exe } from "../../thistle/thistle-asm/fmt.js";
 import { HELLO_TAS, libInc } from "../../thistle/thistle-asm/lib.js";
-import { build } from "esbuild";
-import { WebRootPackage } from "../main/webroot.js";
-import { ROOT_IMAGE_VERSION } from "../main/image.js";
 
 const fs = fsp();
 const root = new URL("../../", import.meta.url);
 const src = new URL("src/", root);
 const dst = new URL("build/", root);
 const assets = new URL("assets/", root);
-const web = new URL("dist/web/", root);
-const webAssets = new URL("assets/", web);
-const vendor = new URL("vendor/", web);
-const bundle = new URL("thistle.js", web);
-const cliRoot = new URL(".thistle.base/", root);
-const webRoot = new URL("root/", web);
-
-await fs.mkdir(web, { recursive: true });
-await build({
-  entryPoints: [decodeURIComponent(new URL("src/boot/loader.ts", root).pathname)],
-  outfile: decodeURIComponent(new URL("bootloader.js", web).pathname),
-  bundle: true,
-  platform: "browser",
-  format: "iife",
-  target: ["es2022"],
-  minify: true,
-  legalComments: "none",
-});
-await build({
-  entryPoints: [decodeURIComponent(new URL("src/boot/standalone.ts", root).pathname)],
-  outfile: decodeURIComponent(new URL("boot-standalone.js", web).pathname),
-  bundle: true,
-  platform: "browser",
-  format: "iife",
-  target: ["es2022"],
-  legalComments: "none",
-});
 
 await fs.mkdir(assets, { recursive: true });
 const hello = new Asm((name) => libInc(name), {"defs": {}, "arch": "thistle64",  debug: true }).run(HELLO_TAS, "hello.tas").obj;
@@ -88,88 +58,3 @@ for (const x of await fs.readdir(src, { withFileTypes: true })) {
   } catch { /* Source-only helper folders don't owe the build a novel. */ }
 }
 
-await fs.mkdir(vendor, { recursive: true });
-await fs.mkdir(webAssets, { recursive: true });
-const packagedRoot = await new WebRootPackage(
-  decodeURIComponent(cliRoot.pathname),
-  decodeURIComponent(webRoot.pathname),
-  ROOT_IMAGE_VERSION,
-).build();
-console.log(
-  `web root: ${packagedRoot.entries.length} paths, ` +
-  `${packagedRoot.core.unpackedSize} eager bytes, ` +
-  `${packagedRoot.core.packedSize} packed bytes`,
-);
-await Promise.all([
-  fs.copyFile(new URL("index.html", root), new URL("index.html", web)),
-  fs.copyFile(new URL("style.css", root), new URL("style.css", web)),
-  fs.copyFile(
-    new URL("mikuos.config.json", root),
-    new URL("mikuos.config.json", web),
-  ),
-  fs.copyFile(
-    new URL("thistle.config.json", root),
-    new URL("thistle.config.json", web),
-  ),
-  fs.copyFile(
-    new URL("node_modules/@xterm/xterm/lib/xterm.js", root),
-    new URL("xterm.js", vendor),
-  ),
-  fs.copyFile(
-    new URL("node_modules/@xterm/addon-fit/lib/addon-fit.js", root),
-    new URL("xterm-fit.js", vendor),
-  ),
-  fs.copyFile(
-    new URL("node_modules/@xterm/xterm/css/xterm.css", root),
-    new URL("xterm.css", vendor),
-  ),
-  fs.copyFile(new URL("hello.thx", assets), new URL("hello.thx", webAssets)),
-  fs.copyFile(new URL("hello.39", assets), new URL("hello.39", webAssets)),
-  fs.copyFile(new URL("hello-rv64.thx", assets), new URL("hello-rv64.thx", webAssets)),
-  fs.copyFile(new URL("hello-rv64.39", assets), new URL("hello-rv64.39", webAssets)),
-]);
-
-await build({
-  entryPoints: [decodeURIComponent(new URL("main/web.ts", src).pathname)],
-  outfile: decodeURIComponent(bundle.pathname),
-  bundle: true,
-  platform: "browser",
-  format: "iife",
-  globalName: "Thistle",
-  target: ["es2022"],
-  charset: "utf8",
-  legalComments: "none",
-  sourcemap: false,
-  minify: false,
-  treeShaking: true,
-  define: { process: "undefined" },
-  minifySyntax: true,
-  external: ["node:*"],
-  logOverride: { "empty-import-meta": "silent" },
-  logLevel: "warning",
-});
-
-const runtime = await fs.readFile(bundle, "utf8");
-const forbidden: Array<[RegExp, string]> = [
-  [/\bWebSocket\b/, "WebSocket"],
-  [/__thistle\//, "runtime-service route"],
-  [/["']node:/, "Node module"],
-  [/\bBun\b/, "Bun global"],
-  [/\bglobalThis\.process\b/, "Node process global"],
-  [/\brequire\s*\(/, "CommonJS require"],
-  [/^\s*import\s/m, "unresolved static import"],
-  [/\bimport\s*\(/, "unresolved dynamic import"],
-];
-
-if (
-  !runtime.includes("var Thistle =") ||
-  !runtime.includes("launchThistle")
-) {
-  throw new Error("static web bundle does not expose the Thistle launch API");
-}
-
-for (const [pattern, label] of forbidden) {
-  if (pattern.test(runtime)) {
-    throw new Error(`static web bundle contains forbidden ${label}`);
-  }
-}

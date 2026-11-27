@@ -41,7 +41,7 @@ export class Printf extends App {
       if (k === "%") return "%";
       const v = a[i++] ?? "";
       if (k === "s") return v;
-      if (k === "c") return v[0] ?? "";
+      if (k === "c") return v.charAt(0);
       const n = Number.parseInt(v, 0);
       if (!Number.isFinite(n)) return "0";
       return k === "x" ? n.toString(16) : k === "X" ? n.toString(16).toUpperCase() : k === "o" ? n.toString(8) : String(n);
@@ -68,13 +68,18 @@ break; }
 
 export class Wc extends App {
   constructor() { super("wc", "Count lines, words and bytes.", "wc [-lwc] [file ...]"); }
+  // App.run is the required polymorphic command entry point, including stateless commands.
+  //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
     const f = a.filter(x => /^-[lwc]+$/.test(x)).join("");
     a = a.filter(x => !/^-[lwc]+$/.test(x));
     const q = await src(s, a);
     for (const [p, x] of q) {
-      const v = [lines(x).length, (x.match(/\S+/g) ?? []).length, enc(x).length];
-      const z = f ? [f.includes("l") ? (v[0] ?? null) : null, f.includes("w") ? (v[1] ?? null) : null, f.includes("c") ? (v[2] ?? null) : null].filter(n => n !== null) : v;
+      const words = x.match(/\S+/g);
+      const z: number[] = [];
+      if (!f || f.includes("l")) z.push(lines(x).length);
+      if (!f || f.includes("w")) z.push(words === null ? 0 : words.length);
+      if (!f || f.includes("c")) z.push(enc(x).length);
       await s.out(z.map(n => String(n).padStart(7)).join("") + (p === "-" ? "" : ` ${p}`) + "\n");
     }
     return 0;
@@ -125,7 +130,8 @@ export class Uniq extends App {
   constructor() { super("uniq", "Filter adjacent duplicate lines.", "uniq [-cd] [file]"); }
   override async run(s: Sys, a: string[]): Promise<number> {
     const f = (withValue((a[0] ?? null) ?? null, value => value.startsWith("-")) ?? null) ? requireValue(a.shift() ?? null, "src/apps/text.ts:117") : "";
-    const q = lines(withValue(((await src(s, a))[0] ?? null) ?? null, value => value[1]) ?? "");
+    const inputs = await src(s, a), first = inputs[0] ?? null;
+    const q = lines(first === null ? "" : first[1]);
     for (let i = 0; i < q.length;) {
       let j = i + 1; while (j < q.length && (q[j] ?? null) === (q[i] ?? null)) j++;
       if (!f.includes("d") || j - i > 1) await s.out(`${f.includes("c") ? String(j - i).padStart(7) + " " : ""}${(q[i] ?? null)}\n`);
@@ -177,7 +183,7 @@ export class Tr extends App {
     for (const c of await s.input()) { const i = x.indexOf(c); switch (true) {
 case !!(i < 0): { out += c;
 break; }
-case !!(!del): { out += y[Math.min(i, y.length - 1)] ?? "";
+case !!(!del): { out += y.charAt(Math.min(i, y.length - 1));
 break; }
 } }
     await s.out(out); return 0;
@@ -189,7 +195,7 @@ export class Sed extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     const quiet = (a[0] ?? null) === "-n"; if (quiet) a.shift();
     const ex = (a.shift() ?? null); if (ex === null || !ex.startsWith("s")) return bad("EINVAL", "sed: substitution required");
-    const d = (ex[1] ?? null); if (!d) return bad("EINVAL", "sed expression");
+    const d = ex.charAt(1); if (!d) return bad("EINVAL", "sed expression");
     const p = ex.slice(2).split(d); if (p.length < 3) bad("EINVAL", "sed expression");
     let rx: RegExp = /(?:)/; try { rx = new RegExp(requireValue(p[0] ?? null, "src/apps/text.ts:179"), (withValue((p[2] ?? null) ?? null, value => value.includes("g")) ?? null) ? "g" : ""); } catch { return bad("EINVAL", "sed pattern"); }
     for (const [, x] of await src(s, a)) for (const line of lines(x)) {
@@ -235,14 +241,14 @@ const b64e = (b: Uint8Array): string => {
   let s = ""; for (const x of b) s += String.fromCharCode(x);
   if (typeof btoa === "function") return btoa(s);
   const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let out = ""; for (let i = 0; i < b.length; i += 3) { const n = (requireValue(b[i] ?? null, "src/apps/text.ts:223") << 16) | ((b[i + 1] ?? 0) << 8) | (b[i + 2] ?? 0); out += requireValue(abc[(n >> 18) & 63] ?? null, "src/apps/text.ts:223") + requireValue(abc[(n >> 12) & 63] ?? null, "src/apps/text.ts:223") + (i + 1 < b.length ? requireValue(abc[(n >> 6) & 63] ?? null, "src/apps/text.ts:223") : "=") + (i + 2 < b.length ? requireValue(abc[n & 63] ?? null, "src/apps/text.ts:223") : "="); } return out;
+  let out = ""; for (let i = 0; i < b.length; i += 3) { const n = (requireValue(b[i] ?? null, "src/apps/text.ts:223") << 16) | ((b[i + 1] ?? 0) << 8) | (b[i + 2] ?? 0); out += abc.charAt((n >> 18) & 63) + abc.charAt((n >> 12) & 63) + (i + 1 < b.length ? abc.charAt((n >> 6) & 63) : "=") + (i + 2 < b.length ? abc.charAt(n & 63) : "="); } return out;
 };
 
 const b64d = (x: string): Uint8Array => {
   x = x.replace(/\s/g, "");
   if (typeof atob === "function") return Uint8Array.from(atob(x), c => c.charCodeAt(0));
   const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"; const out: number[] = [];
-  for (let i = 0; i < x.length; i += 4) { const n = (abc.indexOf(requireValue(x[i] ?? null, "src/apps/text.ts:230")) << 18) | (abc.indexOf(requireValue(x[i + 1] ?? null, "src/apps/text.ts:230")) << 12) | ((abc.indexOf(requireValue(x[i + 2] ?? null, "src/apps/text.ts:230")) & 63) << 6) | (abc.indexOf(requireValue(x[i + 3] ?? null, "src/apps/text.ts:230")) & 63); out.push((n >> 16) & 255); if ((x[i + 2] ?? null) !== "=") out.push((n >> 8) & 255); if ((x[i + 3] ?? null) !== "=") out.push(n & 255); } return new Uint8Array(out);
+  for (let i = 0; i < x.length; i += 4) { const n = (abc.indexOf(requireValue(x[i] ?? null, "src/apps/text.ts:230")) << 18) | (abc.indexOf(requireValue(x[i + 1] ?? null, "src/apps/text.ts:230")) << 12) | ((abc.indexOf(requireValue(x[i + 2] ?? null, "src/apps/text.ts:230")) & 63) << 6) | (abc.indexOf(requireValue(x[i + 3] ?? null, "src/apps/text.ts:230")) & 63); out.push((n >> 16) & 255); if (x.charAt(i + 2) !== "=") out.push((n >> 8) & 255); if (x.charAt(i + 3) !== "=") out.push(n & 255); } return new Uint8Array(out);
 };
 
 export class Base64 extends App {

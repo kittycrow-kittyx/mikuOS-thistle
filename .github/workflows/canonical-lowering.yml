@@ -1,0 +1,50 @@
+name: Canonical Bake lowering
+on:
+  push:
+    branches: [fix/bake-lowering-mikuos]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lower:
+    name: Lower canonical mikuOS without source rewrites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out mikuOS and pinned Thistle
+        uses: actions/checkout@v5
+        with:
+          path: mikuos
+          submodules: recursive
+      - name: Check out Bake
+        uses: actions/checkout@v5
+        with:
+          repository: kittycrow-kittyx/bake
+          ref: ce02403e8f3e506d0339449b5886dad4f0549f60
+          path: bake
+          submodules: recursive
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+      - name: Install locked dependencies
+        run: |
+          (cd mikuos && bun install --frozen-lockfile)
+          (cd bake && bun install --frozen-lockfile --ignore-scripts)
+      - name: Verify source provenance
+        working-directory: mikuos
+        run: |
+          bash scripts/ci/verify-thistle-pin.sh
+          git rev-parse HEAD
+          git -C thistle rev-parse HEAD
+          git -C ../bake rev-parse HEAD
+      - name: Bake canonical boot graph
+        working-directory: mikuos
+        run: |
+          mkdir -p build/lowering
+          bun ../bake/src/cli.ts --project tsconfig.bake.json --out-dir build/lowering/source --target wasm --engine host --fail-on-warnings --report build/lowering/bake-report.json
+      - name: Upload lowering diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: canonical-bake-report
+          path: mikuos/build/lowering/bake-report.json
+          if-no-files-found: warn

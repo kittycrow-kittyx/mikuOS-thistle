@@ -1,4 +1,4 @@
-.PHONY: all install build test toolchain guest-toolchain bun run web web-preview release clean
+.PHONY: all install build test toolchain guest-toolchain bun run release clean
 
 all: build
 
@@ -23,11 +23,6 @@ bun:
 run:
 	bun run mikuos.ts
 
-web:
-	bun run web
-
-web-preview:
-	bun run serve:web
 
 release:
 	bun run release:source

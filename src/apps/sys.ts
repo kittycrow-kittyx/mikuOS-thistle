@@ -6,7 +6,7 @@ import type { Sys } from "../../thistle/src/core/sys.js";
 import { bad } from "../../thistle/src/core/err.js";
 import { dec } from "../../thistle/src/io/stream.js";
 import { size } from "./util.js";
-import { Shell, ShExit } from "../sh/shell.js";
+import { Shell } from "../sh/shell.js";
 import { LineEditor } from "../sh/editor.js";
 import type { Tty } from "../../thistle/src/io/tty.js";
 import { Exe, codec, isExe, isObj } from "../../thistle/thistle-asm/fmt.js";
@@ -70,10 +70,23 @@ const pad = (n: number): string => String(n).padStart(2, "0");
 
 export class DateApp extends App {
   constructor() { super("date", "Print the current date and time.", "date [-u] [+format]"); }
+  // App.run is the required polymorphic command entry point, including stateless commands.
+  //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
-    const d = new Date(), utc = a.includes("-u"), f = (a.find(x => x.startsWith("+")) ?? null);
+    const d = new Date(), utc = a.includes("-u"), format = a.findIndex(x => x.startsWith("+"));
+    const f = format < 0 ? null : requireValue(a[format] ?? null, "date format");
     if (!f) { await s.out((utc ? d.toUTCString() : d.toString()) + "\n"); return 0; }
-    const g = (k: string): number => utc ? requireValue(({ Y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), H: d.getUTCHours(), M: d.getUTCMinutes(), S: d.getUTCSeconds() } as Record<string, number>)[k] ?? null, "src/apps/sys.ts:73") : requireValue(({ Y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(), H: d.getHours(), M: d.getMinutes(), S: d.getSeconds() } as Record<string, number>)[k] ?? null, "src/apps/sys.ts:73");
+    const g = (k: string): number => {
+      switch (k) {
+        case "Y": return utc ? d.getUTCFullYear() : d.getFullYear();
+        case "m": return (utc ? d.getUTCMonth() : d.getMonth()) + 1;
+        case "d": return utc ? d.getUTCDate() : d.getDate();
+        case "H": return utc ? d.getUTCHours() : d.getHours();
+        case "M": return utc ? d.getUTCMinutes() : d.getMinutes();
+        case "S": return utc ? d.getUTCSeconds() : d.getSeconds();
+        default: return bad("EINVAL", `date field ${k}`);
+      }
+    };
     await s.out(f.slice(1).replace(/%([YmdHMSs%])/g, (_m, k: string) => k === "%" ? "%" : k === "s" ? String(Math.floor(d.getTime() / 1000)) : k === "Y" ? String(g(k)) : pad(g(k))) + "\n"); return 0;
   }
 }
@@ -123,7 +136,7 @@ export class Help extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     // Shell input is consumed in the selected script or interactive-session mode.
     //@cg-expect-warning
-    if ((a[0] ?? null)) { const x = (s.apps().find(v => v.name === (a[0] ?? null)) ?? null); if (!x) return 1; await s.out(`${x.name}: ${x.desc}\nusage: ${x.use}\n`); return 0; }
+    if ((a[0] ?? null)) { const apps = s.apps(), index = apps.findIndex(v => v.name === (a[0] ?? null)); if (index < 0) return 1; const x = requireValue(apps[index] ?? null, "help command"); await s.out(`${x.name}: ${x.desc}\nusage: ${x.use}\n`); return 0; }
     await s.out("mikuOS userland commands:\n\n");
     const q = s.apps();
     for (let i = 0; i < q.length; i += 3) await s.out(q.slice(i, i + 3).map(x => x.name.padEnd(12)).join("") + "\n");
@@ -158,99 +171,99 @@ export class Thsh extends App {
   //@cg-expect-warning
   override async run(s: Sys, a: string[]): Promise<number> {
     const sh = new Shell(s);
+    if ((a[0] ?? null) === "-c") return sh.run(a.slice(1).join(" "), false);
+    if ((a[0] ?? null)) {
+      const p = requireValue(a.shift() ?? null, "src/apps/sys.ts:154");
+      s.setenv("0", p); s.setenv("#", String(a.length)); s.setenv("*", a.join(" ")); a.forEach((x, i) => s.setenv(String(i + 1), x));
+      const q = s.read(p).split("\n");
+      ((withValue((q[0] ?? null) ?? null, value => value.startsWith("#!")) ?? null)) && (q.shift() ?? null);
+      return sh.run(q.join("\n"), false);
+    }
+    sh.ensureUserState(true);
+
+    const tty = withValue((
+      withValue((s.p.fds.get(0) ?? null) ?? null, value => value.input) as { tty: Tty | null } | null
+    ) ?? null, value => value.tty);
+
+    /*
+     * A login shell launched by su(1) runs inside the guest process, so it
+     * cannot use the host's outer editor. Reuse the normal LineEditor here
+     * to retain the target account's history, suggestions, completion and
+     * editing key bindings. Redirected stdin keeps the canonical fallback.
+     */
+    if (!tty) {
+      while (!sh.exitRequested) {
+        await s.out(sh.prompt());
+        const input = await s.chunkb();
+        // Shell input is consumed in the selected script or interactive-session mode.
+        //@cg-expect-warning
+        if (!input.length) return sh.last;
+        await sh.run(dec(input).replace(/\r?\n$/, ""));
+      }
+      return sh.last;
+    }
+
+    const inherited = tty.termios();
+    const commands: Array<{
+      source: string;
+      bodies: readonly string[];
+    }> = [];
+    let logout = false;
+
+    const editor = new LineEditor({
+      shell: sh,
+      prompt: () => sh.prompt(),
+      busy: () => false,
+      write: text => tty.write(text),
+      execute: (source, bodies) => {
+        commands.push({
+          source,
+          bodies: [...bodies],
+        });
+      },
+      passthrough: data => tty.feed(data),
+      halt: () => {
+        logout = true;
+      },
+      complete: line => sh.complete(line),
+    });
+
+    tty.lineEditorMode(inherited);
+
     try {
-      if ((a[0] ?? null) === "-c") return sh.run(a.slice(1).join(" "), false);
-      if ((a[0] ?? null)) {
-        const p = requireValue(a.shift() ?? null, "src/apps/sys.ts:154");
-        s.setenv("0", p); s.setenv("#", String(a.length)); s.setenv("*", a.join(" ")); a.forEach((x, i) => s.setenv(String(i + 1), x));
-        const q = s.read(p).split("\n");
-        ((withValue((q[0] ?? null) ?? null, value => value.startsWith("#!")) ?? null)) && (q.shift() ?? null);
-        return sh.run(q.join("\n"), false);
-      }
-      sh.ensureUserState(true);
+      editor.render();
 
-      const tty = withValue((
-        withValue((s.p.fds.get(0) ?? null) ?? null, value => value.input) as { tty: Tty | null } | null
-      ) ?? null, value => value.tty);
+      while (!logout) {
+        const input = await s.chunk();
+        if (!input) return sh.last;
 
-      /*
-       * A login shell launched by su(1) runs inside the guest process, so it
-       * cannot use the host's outer editor. Reuse the normal LineEditor here
-       * to retain the target account's history, suggestions, completion and
-       * editing key bindings. Redirected stdin keeps the canonical fallback.
-       */
-      if (!tty) {
-        for (;;) {
-          await s.out(sh.prompt());
-          const input = await s.chunkb();
-          // Shell input is consumed in the selected script or interactive-session mode.
-          //@cg-expect-warning
-          if (!input.length) return sh.last;
-          await sh.run(dec(input).replace(/\r?\n$/, ""));
+        editor.key(input);
+
+        while (commands.length) {
+          const command = requireValue(commands.shift() ?? null, "src/apps/sys.ts:218");
+
+          /*
+           * Child programmes receive the ordinary inherited terminal
+           * rather than the shell editor's raw terminal mode.
+           */
+          tty.setTermios(inherited, false);
+
+          await sh.run(
+            command.source,
+            true,
+            command.bodies,
+          );
+          if (sh.exitRequested) return sh.last;
+
+          tty.lineEditorMode(inherited);
+          editor.afterCommand(commands.length === 0);
         }
       }
 
-      const inherited = tty.termios();
-      const commands: Array<{
-        source: string;
-        bodies: readonly string[];
-      }> = [];
-      let logout = false;
-
-      const editor = new LineEditor({
-        shell: sh,
-        prompt: () => sh.prompt(),
-        busy: () => false,
-        write: text => tty.write(text),
-        execute: (source, bodies) => {
-          commands.push({
-            source,
-            bodies: [...bodies],
-          });
-        },
-        passthrough: data => tty.feed(data),
-        halt: () => {
-          logout = true;
-        },
-        complete: line => sh.complete(line),
-      });
-
-      tty.lineEditorMode(inherited);
-
-      try {
-        editor.render();
-
-        while (!logout) {
-          const input = await s.chunk();
-          if (!input) return sh.last;
-
-          editor.key(input);
-
-          while (commands.length) {
-            const command = requireValue(commands.shift() ?? null, "src/apps/sys.ts:218");
-
-            /*
-             * Child programmes receive the ordinary inherited terminal
-             * rather than the shell editor's raw terminal mode.
-             */
-            tty.setTermios(inherited, false);
-
-            await sh.run(
-              command.source,
-              true,
-              command.bodies,
-            );
-
-            tty.lineEditorMode(inherited);
-            editor.afterCommand(commands.length === 0);
-          }
-        }
-
-        return sh.last;
-      } finally {
-        tty.setTermios(inherited, false);
-      }
-    } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (e instanceof ShExit) return e.code; throw e; }
+      return sh.last;
+    } finally {
+      tty.setTermios(inherited, false);
+    }
   }
 }
 

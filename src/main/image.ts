@@ -1,15 +1,12 @@
 import { bad, KErr } from "../../thistle/src/core/err.js";
 import type { Kern } from "../../thistle/src/core/kernel.js";
-import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
-import { Dir } from "../../thistle/src/fs/vfs.js";
+import { rootFileCred as r, rootEntryKind, rootPathKind, resetLiveDirectory } from "./root-files.js";
 import { dec, enc } from "../../thistle/src/io/stream.js";
 import { apps, refreshBuiltinRescues } from "../apps/index.js";
 import { Asm } from "../../thistle/thistle-asm/asm.js";
 import { Link } from "../../thistle/thistle-asm/link.js";
 import { codec } from "../../thistle/thistle-asm/fmt.js";
 import { CRT032_TAS, CRT0_TAS, FIB_TAS, HELLO32_TAS, HELLO_TAS, SYS32_TAS, SYS_TAS } from "../../thistle/thistle-asm/lib.js";
-
-const r: Cred = { uid: 0, gid: 0, ruid: 0, euid: 0, suid: 0, rgid: 0, egid: 0, sgid: 0, groups: [0] };
 
 export const ROOT_IMAGE_VERSION = 6;
 
@@ -19,31 +16,29 @@ const osRelease = (k: Kern): string => {
 };
 
 const replaceStockFile = (k: Kern, path: string, oldText: string, newText: string): void => {
-  let text: string;
-  try { text = k.fs.read(path, "/", r); }
-  catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    if (error instanceof KErr && error.code === "ENOENT") return;
-    throw error;
+  // Inspect only canonical directory entries. Missing stock files are left
+  // untouched, as are user-supplied symlinks and renamed paths.
+  let parent = "/", kind = "dir";
+  for (const part of path.split("/").filter(Boolean)) {
+    if (kind !== "dir") throw new KErr("ENOTDIR", path);
+    const child = rootEntryKind(k, parent, part);
+    if (child === null || child === "link") return;
+    kind = child;
+    parent = parent === "/" ? `/${part}` : `${parent}/${part}`;
   }
+  const text = k.fs.read(path, "/", r);
   if (text === oldText) k.fs.write(path, newText, "/", r);
 };
 
 const addStockLink = (k: Kern, target: string, path: string): void => {
-  try { k.fs.stat(path, "/", r); }
-  catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    if (!(error instanceof KErr) || error.code !== "ENOENT") throw error;
-    try { k.fs.stat(target, "/", r); }
-    catch { return; }
-    k.fs.symlink(target, path, "/", r);
-  }
+  if (rootPathKind(k, path) !== null) return;
+  try { k.fs.stat(target, "/", r); }
+  catch { return; }
+  k.fs.symlink(target, path, "/", r);
 };
 
 const addStockFile = (k: Kern, path: string, text: string, mode = 0o644): void => {
-  try { k.fs.stat(path, "/", r); }
-  catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    if (!(error instanceof KErr) || error.code !== "ENOENT") throw error;
-    k.fs.mkfile(path, text, "/", r, mode);
-  }
+  if (rootPathKind(k, path) === null) k.fs.mkfile(path, text, "/", r, mode);
 };
 
 /** Apply only exact-match stock migrations; missing and user-edited files win. */
@@ -215,11 +210,8 @@ export const image = (k: Kern): void => {
 
 /** Rebuild the bits which are alive, rather than files wearing convincing hats. */
 export const live = (k: Kern): void => {
-  const reset = (name: string): Dir => {
-    const old = (k.fs.root.ent.get(name) ?? null), d = old instanceof Dir ? old : new Dir();
-    d.ent.clear(); d.mode = 0o755; d.uid = 0; d.gid = 0; k.fs.root.ent.set(name, d); return d;
-  };
-  reset("dev"); reset("proc");
+  resetLiveDirectory(k, "dev");
+  resetLiveDirectory(k, "proc");
   k.fs.mkdir("/proc/net", "/", r);
   const ro = (): never => bad("EROFS", "read-only device");
   const rnd = (n: number): Uint8Array => { const b = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(b.subarray(i, Math.min(i + 65536, n))); return b; };

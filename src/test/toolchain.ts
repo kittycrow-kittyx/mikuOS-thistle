@@ -1,4 +1,4 @@
-import { boot } from "../main/boot.js";
+import { boot } from "../main/host-boot.js";
 import { rootPkg } from "../main/pkg.js";
 import { Exe, codec } from "../../thistle/thistle-asm/fmt.js";
 

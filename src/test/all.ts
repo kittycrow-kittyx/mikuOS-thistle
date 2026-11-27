@@ -1,16 +1,20 @@
 // This module composes kernel, toolchain or integration-test boundaries and intentionally imports their contracts.
 //@cg-expect-warning
 import { BootRenderer } from "../boot/display.js";
+import { Elf, ElfErr, isElf } from "../elf/elf.js";
 import { createHash } from "node:crypto";
 import { parseJson } from "../core/json.js";
+import { defaultPrefs, parsePrefs } from "../sh/prefs.js";
+import { keySequences } from "../sh/keys.js";
 import assert from "node:assert/strict";
 import { hostModule } from "../main/host-module.js";
 import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
 import { runInNewContext } from "node:vm";
-import { boot } from "../main/boot.js";
+import { boot } from "../main/host-boot.js";
 import { ROOT_IMAGE_VERSION } from "../main/image.js";
 import { FnApp } from "../../thistle/src/apps/base.js";
+import { Rm } from "../apps/fs.js";
 import type { Ch, Os } from "../main/boot.js";
 import { KErr } from "../../thistle/src/core/err.js";
 import { dec, enc } from "../../thistle/src/io/stream.js";
@@ -107,6 +111,59 @@ class MemTree implements Tree {
 
 const tests: Array<[string, () => void | Promise<void>]> = [];
 const test = (name: string, fn: () => void | Promise<void>): void => { tests.push([name, fn]); };
+test("preference validation reports input errors without mutating existing settings", () => {
+  const initial = defaultPrefs();
+  initial.historySize = 17;
+  initial.completionListLimit = 9;
+  const parsed = parsePrefs("historySize=-1\ncompletionListLimit=0\ncolour=perhaps\ndefaultScriptLang=other\nfutureSetting='retained'", initial);
+  assert.deepEqual(parsed.warnings, [
+    "line 1: historySize: expected 0..1000000",
+    "line 2: completionListLimit: expected 1..100000",
+    "line 3: colour: expected true or false",
+    "line 4: defaultScriptLang: expected thsh or bash",
+  ]);
+  assert.equal(parsed.prefs.historySize, 17);
+  assert.equal(parsed.prefs.completionListLimit, 9);
+  assert.equal(parsed.prefs.colour, initial.colour);
+  assert.equal(parsed.prefs.defaultScriptLang, initial.defaultScriptLang);
+  assert.equal(parsed.unknown.get("futureSetting") ?? null, "retained");
+  const valid = parsePrefs("historySize=0\ncompletionListLimit=100000\ncolour=off\ndefaultScriptLang=bash", initial);
+  assert.deepEqual(valid.warnings, []);
+  assert.equal(valid.prefs.historySize, 0);
+  assert.equal(valid.prefs.completionListLimit, 100000);
+  assert.equal(valid.prefs.colour, false);
+  assert.equal(valid.prefs.defaultScriptLang, "bash");
+  assert.equal(initial.historySize, 17);
+  assert.equal(initial.completionListLimit, 9);
+});
+
+test("quoted preferences preserve empty values, escapes and unmatched delimiters", () => {
+  const parsed = parsePrefs('heredocPrompt=""\npromptFormat=\'line\\nnext\'\nautocompleteColour="blue\nfutureSetting=\'retained\'');
+  assert.deepEqual(parsed.warnings, []);
+  assert.equal(parsed.prefs.heredocPrompt, "");
+  assert.equal(parsed.prefs.promptFormat, "line\nnext");
+  assert.equal(parsed.prefs.autocompleteColour, '"blue');
+  assert.equal(parsed.unknown.get("futureSetting") ?? null, "retained");
+});
+
+test("ELF identification honours view bounds and rejects truncated headers", () => {
+  const storage = new Uint8Array(40);
+  storage.set([0x7f, 0x45, 0x4c, 0x46], 8);
+  const header = storage.subarray(8, 24);
+  assert.equal(isElf(header), true);
+  assert.equal(isElf(storage), false);
+  assert.equal(isElf(header.subarray(0, 15)), false);
+  assert.equal(isElf(new Uint8Array()), false);
+  assert.equal(new Elf().parse(header).message, "a.out: truncated ELF header");
+});
+
+test("hex key bindings retain raw sequence validation", () => {
+  assert.deepEqual(keySequences(" Hex: 0x1b 0x5b 0x41 "), ["\x1b[A"]);
+  assert.deepEqual(keySequences("hex:1b5b46"), ["\x1b[F"]);
+  assert.deepEqual(keySequences("hex:1"), []);
+  assert.deepEqual(keySequences("hex:"), []);
+  assert.deepEqual(keySequences("not-a-key"), []);
+});
 const show = <T>(value: T): string => JSON.stringify(value, <V>(_key: string, item: V) => typeof item === "bigint" ? `${item}n` : item) ?? String(value);
 
 test("TypeScript boot display preserves original terminal output", async () => {
@@ -365,16 +422,13 @@ test(".thx and .39 are byte-identical header-selected THX aliases", async () => 
   interface HFs { readFile(path: URL): Promise<Uint8Array>; }
 
   const fs = await hostModule("node:fs/promises") as HFs;
-  const [assetThx, asset39, webThx, web39] = await Promise.all([
+  const [assetThx, asset39] = await Promise.all([
     fs.readFile(new URL("../../assets/hello.thx", import.meta.url)),
     fs.readFile(new URL("../../assets/hello.39", import.meta.url)),
-    fs.readFile(new URL("../../dist/web/assets/hello.thx", import.meta.url)),
-    fs.readFile(new URL("../../dist/web/assets/hello.39", import.meta.url)),
   ]);
   const same = (a: Uint8Array, b: Uint8Array): boolean =>
     a.length === b.length && a.every((value, index) => value === (b[index] ?? null));
   assert.ok(same(assetThx, asset39), "generated .thx and .39 assets differ");
-  assert.ok(same(assetThx, webThx) && same(asset39, web39), "static packaging changed THX alias bytes");
   assert.equal(dec(asset39.slice(0, 4)), "THX2");
 
   const r = new Rig(), s = r.os.s;
@@ -498,11 +552,10 @@ test("canonical mikuOS release metadata stays aligned", async () => {
 
   const fs = await hostModule("node:fs/promises") as HFs;
   const root = new URL("../../", import.meta.url);
-  const [packageText, configText, manifest, page, ignore, mikuosEntry, thistleEntry] = await Promise.all([
+  const [packageText, configText, manifest, ignore, mikuosEntry, thistleEntry] = await Promise.all([
     fs.readFile(new URL("package.json", root), "utf8"),
     fs.readFile(new URL("mikuos.config.json", root), "utf8"),
     fs.readFile(new URL("mikuos.yaml", root), "utf8"),
-    fs.readFile(new URL("index.html", root), "utf8"),
     fs.readFile(new URL(".gitignore", root), "utf8"),
     fs.readFile(new URL("mikuos.ts", root), "utf8"),
     fs.readFile(new URL("thistle.ts", root), "utf8"),
@@ -524,7 +577,6 @@ test("canonical mikuOS release metadata stays aligned", async () => {
   assert.ok(manifest.includes("release: 0.3.0"));
   assert.ok(manifest.includes("release: " + CANONICAL_CONFIG.kernel.version));
   assert.ok(manifest.includes("build_policy: host-only-thistlecc"));
-  assert.ok(page.includes("<title>初音ミクOS v｡三</title>"));
   assert.ok(!ignore.split(/\r?\n/).includes("ports/"), "native source tree is broadly ignored");
   assert.ok(ignore.includes("ports/**/*.o"), "reproducible native objects are not ignored");
   assert.ok(mikuosEntry.includes('import "./src/main/cli.ts"'));
@@ -1337,6 +1389,27 @@ test("redirects and filesystem commands", async () => {
   await r.run("rm -r /tmp/a");
   let miss = false; try { r.os.s.stat("/tmp/a"); } catch { miss = true; }
   assert.ok(miss, "recursive rm left the tree behind");
+
+  const rm = new Rm();
+  await assert.rejects(
+    () => rm.run(r.os.s, ["/tmp/no-such-entry"]),
+    { code: "ENOENT" },
+    "non-forced rm must propagate the original filesystem exception",
+  );
+  r.os.s.mkdir("/tmp/forced");
+  r.os.s.mkdir("/tmp/forced/sub");
+  r.os.s.write("/tmp/forced/sub/file", "content");
+  assert.equal(
+    await rm.run(r.os.s, ["-rf", "/tmp/no-such-entry", "/tmp/forced"]),
+    0,
+    "forced recursive removal must ignore missing entries and remove nested files",
+  );
+  assert.throws(
+    () => r.os.s.stat("/tmp/forced"),
+    { code: "ENOENT" },
+    "forced recursive removal left a nested directory behind",
+  );
+
   await r.run("umask 077; touch /tmp/private");
   assert.equal(r.os.s.stat("/tmp/private").mode, 0o600, "umask was not inherited by a child");
 });
@@ -1372,6 +1445,76 @@ test("background jobs and signals", async () => {
   x = await r.run("wait %1");
   assert.equal(x.code, 143);
   assert.equal(r.os.sh.jobs.size, 0);
+});
+
+test("ELF import validates results and preserves file errors", async () => {
+  const image = new Uint8Array(140), v = new DataView(image.buffer);
+  image.set([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1]);
+  v.setUint16(16, 2, true); v.setUint16(18, 243, true); v.setUint32(20, 1, true);
+  v.setBigUint64(24, 0x10000n, true); v.setBigUint64(32, 64n, true);
+  v.setUint16(52, 64, true); v.setUint16(54, 56, true); v.setUint16(56, 1, true);
+  v.setUint32(64, 1, true); v.setUint32(68, 5, true);
+  v.setBigUint64(72, 128n, true); v.setBigUint64(80, 0x10000n, true);
+  v.setBigUint64(96, 12n, true); v.setBigUint64(104, 12n, true); v.setBigUint64(112, 16n, true);
+  v.setUint32(128, 0x00700513, true); v.setUint32(132, 0x05d00893, true); v.setUint32(136, 0x00000073, true);
+  const parser = new Elf(), good = parser.parse(image, "exit.elf");
+  assert.equal(good.message, null);
+  assert.ok(good.exe !== null);
+  assert.equal(parser.run(image).entry, 0x10000);
+  const truncated = image.slice(0, 32), badHeader = parser.parse(truncated, "short.elf");
+  assert.equal(badHeader.exe, null);
+  assert.equal(badHeader.message, "short.elf: truncated ELF header");
+  assert.throws(() => parser.run(truncated, "short.elf"), ElfErr);
+  const overflow = image.slice();
+  new DataView(overflow.buffer).setBigUint64(24, 0xffffffffffffffffn, true);
+  assert.equal(parser.parse(overflow).message, "ELF entry is outside Thistle's address range");
+  const r = new Rig();
+  r.os.s.mkfile("/tmp/exit.elf", image);
+  r.os.s.mkfile("/tmp/short.elf", truncated);
+  let x = await r.run("elf2thx -o /tmp/exit.thx /tmp/exit.elf; /tmp/exit.thx");
+  assert.equal(x.code, 7);
+  assert.equal(x.err, "");
+  x = await r.run("elf2thx /tmp/short.elf");
+  assert.ok(x.err.includes("ENOEXEC"));
+  x = await r.run("elf2thx /tmp/missing.elf");
+  assert.ok(x.err.includes("ENOENT"));
+});
+
+test("shell exits preserve status, cleanup and subshell isolation without throwing", async () => {
+  const r = new Rig();
+  let halted = 0;
+  r.os.host.halt = () => { halted++; };
+  let x = await r.run("echo before; exit 7; echo unreachable");
+  assert.equal(x.code, 7);
+  assert.equal(x.out, "before\n");
+  assert.equal(x.err, "");
+  assert.equal(halted, 1);
+  assert.equal(r.os.busy, false);
+  assert.equal(r.os.sh.exitRequested, false);
+
+  x = await r.run("cat <<EOF\n$(echo inside; exit 5; echo unreachable)\nEOF\necho outside");
+  assert.equal(x.code, 0);
+  assert.equal(x.out, "inside\noutside\n");
+  assert.equal(x.err, "");
+  assert.equal(halted, 1);
+
+  x = await r.run("thsh -c 'echo child; exit 3; echo unreachable'; echo parent");
+  assert.equal(x.code, 0);
+  assert.equal(x.out, "child\nparent\n");
+  assert.equal(x.err, "");
+  assert.equal(halted, 1);
+
+  const path = r.os.s.env("PATH");
+  x = await r.run("command -p exit 4; echo unreachable");
+  assert.equal(x.code, 4);
+  assert.equal(x.out, "");
+  assert.equal(r.os.s.env("PATH"), path);
+  assert.equal(halted, 2);
+
+  x = await r.run("false; logout; echo unreachable");
+  assert.equal(x.code, 1);
+  assert.equal(x.out, "");
+  assert.equal(halted, 3);
 });
 
 test("scripts retain shell state", async () => {

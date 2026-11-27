@@ -1,6 +1,7 @@
 import { withValue } from "../../thistle/src/core/err.js";
-import { boot } from "./boot.js";
-import type { Host, Os } from "./boot.js";
+import { boot } from "./host-boot.js";
+import type { Host } from "./host-boot.js";
+import type { Os } from "./boot.js";
 import type { SystemConfig } from "../core/config.js";
 import type { Tree } from "../../thistle/src/fs/tree.js";
 import { Net } from "../../thistle/src/net/net.js";

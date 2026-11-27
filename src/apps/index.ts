@@ -1,24 +1,11 @@
 import type { Kern } from "../../thistle/src/core/kernel.js";
-import { KErr } from "../../thistle/src/core/err.js";
-import type { ProcCred as Cred } from "../../thistle/src/fs/vfs.js";
+import { rootFileCred as root, rootEntryKind, rootPathKind } from "../main/root-files.js";
 import { BaseName, Cat, Chmod, Chown, Cp, DirName, Find, Ln, Ls, Mkdir, Mv, Pwd, Readlink, Rm, Rmdir, StatApp, Touch } from "./fs.js";
 import { Base64, Cut, Echo, Grep, Printf, Sed, Seq, Sort, Strings, Tail, Tee, Tr, Uniq, Wc, Yes } from "./text.js";
 import { Kill, Ps, Sleep, Time } from "./proc.js";
 import { Clear, DateApp, Df, Dmesg, Env, Expr, FalseApp, FileApp, Free, Help, Hostname, Id, Mount, PrintEnv, TestApp, Thsh, TrueApp, Uname, Uptime, Which, Whoami } from "./sys.js";
 import { Wget } from "./net.js";
 import { AsApp, DisApp, Elf2ThxApp, LdApp, NmApp, ObjdumpApp, SizeApp } from "./asm.js";
-
-const root: Cred = {
-  uid: 0,
-  gid: 0,
-  ruid: 0,
-  euid: 0,
-  suid: 0,
-  rgid: 0,
-  egid: 0,
-  sgid: 0,
-  groups: [0],
-};
 
 export const BUILTIN_RESCUE_ROOT = "/usr/libexec/mikuos/builtin";
 export const BUILTIN_MANIFEST = "/usr/share/mikuos/builtin-commands.json";
@@ -28,17 +15,17 @@ const ensureDir = (k: Kern, path: string): void => {
   let current = "";
 
   for (const part of path.split("/").filter(Boolean)) {
+    const parent = current || "/";
+    const kind = rootEntryKind(k, parent, part);
     current += `/${part}`;
-
-    try {
-      const stat = k.fs.stat(current, "/", root);
-      if (stat.kind !== "dir") throw new Error(`${current} is not a directory`);
-    } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-      if (!(error instanceof KErr) || error.code !== "ENOENT") throw error;
-      k.fs.mkdir(current, "/", root, 0o755);
-    }
+    if (kind === null) { k.fs.mkdir(current, "/", root, 0o755); continue; }
+    const stat = k.fs.stat(current, "/", root);
+    if (stat.kind !== "dir") throw new Error(`${current} is not a directory`);
   }
 };
+
+const alreadyPreserved = (k: Kern, path: string): boolean =>
+  rootPathKind(k, path) !== null && k.fs.stat(path, "/", root).kind === "file";
 
 const writeRootFile = (
   k: Kern,
@@ -47,15 +34,12 @@ const writeRootFile = (
   mode: number,
   preserve = false,
 ): void => {
-  try {
-    if (preserve && k.fs.stat(path, "/", root).kind === "file") return;
-    k.fs.write(path, data, "/", root, false, mode);
-    k.fs.chmod(path, mode, "/", root);
-    k.fs.chown(path, 0, 0, "/", root);
-  } catch (caughtValue) { const error = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));
-    if (!(error instanceof KErr) || error.code !== "ENOENT") throw error;
-    k.fs.mkfile(path, data, "/", root, mode);
-  }
+  if (preserve && alreadyPreserved(k, path)) return;
+
+  // Vfs.write creates absent regular files, and genuine failures propagate.
+  k.fs.write(path, data, "/", root, false, mode);
+  k.fs.chmod(path, mode, "/", root);
+  k.fs.chown(path, 0, 0, "/", root);
 };
 
 /**

@@ -38,7 +38,7 @@ interface PrefixHistoryState {
 
 const trailingContinuation = (source: string): boolean => {
   let count = 0;
-  for (let i = source.length - 1; i >= 0 && (source[i] ?? null) === "\\"; i--) count++;
+  for (let i = source.length - 1; i >= 0 && source.charAt(i) === "\\"; i--) count++;
   return count % 2 === 1;
 };
 
@@ -221,7 +221,7 @@ export class LineEditor {
     }
 
     const suggestion = this.suggestion();
-    const suffix = (withValue(suggestion ?? null, value => value.startsWith(this.line)) ?? null) ? requireValue(suggestion ?? null, "src/sh/editor.ts:222").slice(this.line.length) : "";
+    const suffix = suggestion !== null && suggestion.startsWith(this.line) ? suggestion.slice(this.line.length) : "";
     const colour = suffix && this.host.shell.prefs.colour
       ? this.host.shell.prefs.autocompleteColour === "faint" ? "\x1b[2m" : "\x1b[90m"
       : "";
@@ -246,7 +246,7 @@ export class LineEditor {
     const match = /(^|\s)([^\s]*)$/.exec(source);
     if (!match) return [];
 
-    const prefix = source.slice(0, match.index + requireValue(match[1] ?? null, "src/sh/editor.ts:245").length);
+    const prefix = source.slice(0, source.length - match[0].trimStart().length);
     return candidates.map(candidate => prefix + candidate + (candidate.endsWith("/") ? "" : " "));
   }
 
@@ -321,8 +321,8 @@ export class LineEditor {
 
     if (suggestion) {
       let end = this.line.length;
-      while (end < suggestion.length && /\s/.test(requireValue(suggestion[end] ?? null, "src/sh/editor.ts:322"))) end++;
-      while (end < suggestion.length && !/\s/.test(requireValue(suggestion[end] ?? null, "src/sh/editor.ts:323"))) end++;
+      while (end < suggestion.length && /\s/.test(suggestion.charAt(end))) end++;
+      while (end < suggestion.length && !/\s/.test(suggestion.charAt(end))) end++;
       this.line = suggestion.slice(0, end);
       this.cursor = this.line.length;
       this.suggestionIndex = 0;
@@ -332,8 +332,8 @@ export class LineEditor {
 
     if (this.cursor < this.line.length) {
       let end = this.cursor;
-      while (end < this.line.length && /\s/.test(requireValue(this.line[end] ?? null, "src/sh/editor.ts:333"))) end++;
-      while (end < this.line.length && !/\s/.test(requireValue(this.line[end] ?? null, "src/sh/editor.ts:334"))) end++;
+      while (end < this.line.length && /\s/.test(this.line.charAt(end))) end++;
+      while (end < this.line.length && !/\s/.test(this.line.charAt(end))) end++;
       this.cursor = end;
       this.render();
       return;
@@ -634,7 +634,9 @@ default: {
       return;
 
   }
-key(raw: string): void {
+  key(raw: string): void {
+    // Busy input belongs to the foreground process; otherwise history and completion
+    // state are reset before key dispatch, preserving remapped key precedence.
     if (this.host.busy()) {
       this.host.passthrough(raw);
       return;
@@ -666,7 +668,20 @@ key(raw: string): void {
 
     if (!completionKey) this.resetCompletion();
 
-    if (this.reverse) { this.reverseKey(input); return; }
+    if (this.suggestionKey(input)) return;
+    if (this.controlKey(input)) return;
+    if (this.cursorKey(input)) return;
+    if (this.deleteKey(input)) return;
+    if (this.navigationKey(input, historyPreviousKey, historyNextKey)) return;
+
+    if ([...input].every(character => character >= " " && character !== "\x7f")) {
+      this.insert(input);
+    }
+  }
+
+  private suggestionKey(input: string): boolean {
+    const prefs = this.host.shell.prefs;
+    if (this.reverse) { this.reverseKey(input); return true; }
 
     if (prefs.reverseSearch && keyMatches(input, prefs.keyHistorySearchReverse)) {
       this.reverse = {
@@ -677,30 +692,35 @@ key(raw: string): void {
         index: 0,
       };
       this.render();
-      return;
+      return true;
     }
 
-    if (keyMatches(input, prefs.keySuggestionOlder)) { this.olderSuggestion(); return; }
+    if (keyMatches(input, prefs.keySuggestionOlder)) { this.olderSuggestion(); return true; }
 
-    if (keyMatches(input, prefs.keySuggestionNewer)) { this.newerSuggestion(); return; }
+    if (keyMatches(input, prefs.keySuggestionNewer)) { this.newerSuggestion(); return true; }
 
     if (keyMatches(input, prefs.keySuggestionAccept)) {
       this.acceptSuggestion();
-      return;
+      return true;
     }
 
     if (keyMatches(input, prefs.keySuggestionAcceptWord)) {
       this.acceptSuggestionWord();
-      return;
+      return true;
     }
 
     if (keyMatches(input, prefs.keySuggestionSuppress)) {
       this.suggestionSuppressed = true;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
+    return false;
+  }
+
+  private controlKey(input: string): boolean {
+    const prefs = this.host.shell.prefs;
     if (input === "\x03") {
       this.line = "";
       this.cursor = 0;
@@ -712,27 +732,31 @@ key(raw: string): void {
       this.suggestionSuppressed = false;
       this.host.write("^C\r\n");
       this.render();
-      return;
+      return true;
     }
 
-    if (input === "\x04" && !this.line) { this.endInput(); return; }
+    if (input === "\x04" && !this.line) { this.endInput(); return true; }
 
     if (input === "\r" || input === "\n") {
       this.submit();
-      return;
+      return true;
     }
 
     if (input === "\x0c") {
       this.host.write(prefs.clearScrollback ? "\x1b[3J\x1b[2J\x1b[H" : "\x1b[2J\x1b[H");
       this.render();
-      return;
+      return true;
     }
 
+    return false;
+  }
+
+  private cursorKey(input: string): boolean {
     if (input === "\x01" || input === "\x1b[H" || input === "\x1b[1~") {
       this.cursor = 0;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
     // End remains ordinary cursor movement when it is remapped away from
@@ -741,59 +765,67 @@ key(raw: string): void {
       this.cursor = this.line.length;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
-    if (input === "\x1b[D" || input === "\x02") { this.moveLeft(); return; }
+    if (input === "\x1b[D" || input === "\x02") { this.moveLeft(); return true; }
 
-    if (input === "\x1b[C" || input === "\x06") { this.moveRight(); return; }
+    if (input === "\x1b[C" || input === "\x06") { this.moveRight(); return true; }
 
-    if (input === "\x7f" || input === "\b") { this.backspace(); return; }
+    return false;
+  }
 
-    if (input === "\x1b[3~") { this.deleteForward(); return; }
+  private deleteKey(input: string): boolean {
+    // All deletion commands retain the original cursor and suggestion reset rules.
+    if (input === "\x7f" || input === "\b") { this.backspace(); return true; }
+
+    if (input === "\x1b[3~") { this.deleteForward(); return true; }
 
     if (input === "\x15") {
       this.line = this.line.slice(this.cursor);
       this.cursor = 0;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
     if (input === "\x0b") {
       this.line = this.line.slice(0, this.cursor);
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
     if (input === "\x17") {
       let at = this.cursor;
-      while (at > 0 && /\s/.test(requireValue(this.line[at - 1] ?? null, "src/sh/editor.ts:666"))) at--;
-      while (at > 0 && !/\s/.test(requireValue(this.line[at - 1] ?? null, "src/sh/editor.ts:667"))) at--;
+      while (at > 0 && /\s/.test(this.line.charAt(at - 1))) at--;
+      while (at > 0 && !/\s/.test(this.line.charAt(at - 1))) at--;
       this.line = this.line.slice(0, at) + this.line.slice(this.cursor);
       this.cursor = at;
       this.suggestionIndex = 0;
       this.render();
-      return;
+      return true;
     }
 
-    if (historyPreviousKey) { this.previousHistory(); return; }
+    return false;
+  }
 
-    if (historyNextKey) { this.nextHistory(); return; }
+  private navigationKey(input: string, previous: boolean, next: boolean): boolean {
+    const prefs = this.host.shell.prefs;
+    if (previous) { this.previousHistory(); return true; }
+
+    if (next) { this.nextHistory(); return true; }
 
     if (keyMatches(input, prefs.keyCompleteNext)) {
       this.complete(false);
-      return;
+      return true;
     }
 
     if (keyMatches(input, prefs.keyCompletePrevious)) {
       this.complete(true);
-      return;
+      return true;
     }
 
-    if ([...input].every(character => character >= " " && character !== "\x7f")) {
-      this.insert(input);
-    }
+    return false;
   }
 }

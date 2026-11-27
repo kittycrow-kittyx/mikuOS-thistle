@@ -3,7 +3,7 @@ import { withValue } from "../../thistle/src/core/err.js";
 import { requireValue } from "../../thistle/src/core/err.js";
 import { App } from "../../thistle/src/apps/base.js";
 import type { Sys } from "../../thistle/src/core/sys.js";
-import { fmtMode, norm, Reg, Sym } from "../../thistle/src/fs/vfs.js";
+import { Dir, fmtMode, norm, Reg, Sym } from "../../thistle/src/fs/vfs.js";
 import type { VNode } from "../../thistle/src/fs/vfs.js";
 import { cols, globRx, size } from "./util.js";
 import { bad, KErr } from "../../thistle/src/core/err.js";
@@ -11,9 +11,28 @@ import { bad, KErr } from "../../thistle/src/core/err.js";
 const base = (p: string): string => norm(p).split("/").filter(Boolean).at(-1) ?? "/";
 const join = (a: string, b: string): string => a === "/" ? `/${b}` : `${a.replace(/\/$/, "")}/${b}`;
 
+// The upstream VFS exposes directory entries, so an existing destination
+// need not be manufactured into an EEXIST exception and then caught.
+const mkdirIfMissing = (s: Sys, path: string, mode: number): void => {
+  const absolute = norm(path, s.cwd);
+  const cut = absolute.lastIndexOf("/");
+  const parentPath = absolute.slice(0, cut) || "/";
+  const name = absolute.slice(cut + 1);
+  const parent = s.node(parentPath);
+  if (!(parent instanceof Dir)) throw new KErr("ENOTDIR", parentPath);
+  if (!parent.ent.has(name)) s.mkdir(absolute, mode);
+};
+
 export class Pwd extends App {
   constructor() { super("pwd", "Print the current working directory."); }
   override async run(s: Sys): Promise<number> { await s.out(s.cwd + "\n"); return 0; }
+}
+
+interface ListMode {
+  all: boolean;
+  long: boolean;
+  human: boolean;
+  recursive: boolean;
 }
 
 export class Ls extends App {
@@ -21,23 +40,30 @@ export class Ls extends App {
 
   override async run(s: Sys, a: string[]): Promise<number> {
     const fl = a.filter(x => /^-[^-]/.test(x)).join("");
-    const all = fl.includes("a"), long = fl.includes("l"), hum = fl.includes("h"), rec = fl.includes("R");
+    const mode: ListMode = { all: fl.includes("a"), long: fl.includes("l"), human: fl.includes("h"), recursive: fl.includes("R") };
     const ps = a.filter(x => !x.startsWith("-"));
     if (!ps.length) ps.push(".");
-    const one = async (p: string, head: boolean): Promise<void> => {
-      const st = s.stat(p, false);
-      if (st.kind !== "dir") { await s.out(this.row(s, base(p), s.node(p, false), long, hum)); return; }
-      if (head) await s.out(`${p}:\n`);
-      let q = s.list(p);
-      if (!all) q = q.filter(([n]) => !n.startsWith("."));
-      if (long) for (const [n, v] of q) await s.out(this.row(s, n, v, true, hum));
-      else await s.out(cols(q.map(([n]) => n)));
-      // Stream and traversal modes select the applicable I/O checks and exit paths.
-      //@cg-expect-warning
-      if (rec) for (const [n, v] of q) if (v.kind === "dir" && n !== "." && n !== "..") { await s.out("\n"); await one(join(norm(p, s.cwd), n), true); }
-    };
-    for (let i = 0; i < ps.length; i++) { await one(requireValue(ps[i] ?? null, "src/apps/fs.ts:34"), ps.length > 1); if (i < ps.length - 1) await s.out("\n"); }
+    for (let i = 0; i < ps.length; i++) {
+      await this.listOne(s, requireValue(ps[i] ?? null, "ls path"), ps.length > 1, mode);
+      if (i < ps.length - 1) await s.out("\n");
+    }
     return 0;
+  }
+
+  private async listOne(s: Sys, p: string, head: boolean, mode: ListMode): Promise<void> {
+    const st = s.stat(p, false);
+    if (st.kind !== "dir") { await s.out(this.row(s, base(p), s.node(p, false), mode.long, mode.human)); return; }
+    if (head) await s.out(`${p}:\n`);
+    let entries = s.list(p);
+    if (!mode.all) entries = entries.filter(([name]) => !name.startsWith("."));
+    if (mode.long) for (const [name, node] of entries) await s.out(this.row(s, name, node, true, mode.human));
+    else await s.out(cols(entries.map(([name]) => name)));
+    if (!mode.recursive) return;
+    for (const [name, node] of entries) {
+      if (node.kind !== "dir" || name === "." || name === "..") continue;
+      await s.out("\n");
+      await this.listOne(s, join(norm(p, s.cwd), name), true, mode);
+    }
   }
 
   private row(s: Sys, n: string, v: VNode, long: boolean, hum: boolean): string {
@@ -49,6 +75,14 @@ export class Ls extends App {
   }
 }
 
+async function printCat(s: Sys, text: string, line: number | null): Promise<number | null> {
+  if (line === null) { await s.out(text); return null; }
+  const lines = withValue(text.match(/.*(?:\n|$)/g) ?? null, value => value.filter(Boolean)) ?? [];
+  let next = line;
+  for (const value of lines) await s.out(`${String(next++).padStart(6)}\t${value}`);
+  return next;
+}
+
 export class Cat extends App {
   constructor() { super("cat", "Concatenate files to standard output.", "cat [-n] [file ...]"); }
   // App.run is the required polymorphic command entry point, including stateless commands.
@@ -56,20 +90,15 @@ export class Cat extends App {
   override async run(s: Sys, a: string[]): Promise<number> {
     const num = a.includes("-n");
     const ps = a.filter(x => x !== "-n");
-    let n = 1;
-    const put = async (x: string): Promise<void> => {
-      if (!num) { await s.out(x); return; }
-      const lines = withValue(x.match(/.*(?:\n|$)/g) ?? null, value => value.filter(Boolean)) ?? [];
-      for (const line of lines) await s.out(`${String(n++).padStart(6)}\t${line}`);
-    };
-    if (!ps.length) await put(await s.input());
+    let line: number | null = num ? 1 : null;
+    if (!ps.length) await printCat(s, await s.input(), line);
     else for (const p of ps) {
       // Stream and traversal modes select the applicable I/O checks and exit paths.
       //@cg-expect-warning
-      if (p === "-") { await put(await s.input()); continue; }
+      if (p === "-") { line = await printCat(s, await s.input(), line); continue; }
       // Stream and traversal modes select the applicable I/O checks and exit paths.
       //@cg-expect-warning
-      if (num) { await put(s.read(p)); continue; }
+      if (num) { line = await printCat(s, s.read(p), line); continue; }
       const fd = s.open(p);
       // Stream and traversal modes select the applicable I/O checks and exit paths.
       //@cg-expect-warning
@@ -84,7 +113,10 @@ export class Touch extends App {
   constructor() { super("touch", "Create files or update their modification time.", "touch file ..."); }
   override async run(s: Sys, a: string[]): Promise<number> {
     if (!a.length) bad("EINVAL", "touch: missing file");
-    for (const p of a) { try { s.writeb(p, s.readb(p)); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (e instanceof KErr && e.code === "ENOENT") s.write(p, ""); else throw e; } }
+    // A zero-byte append creates missing files and updates existing inode times
+    // without needing a read, a replacement write, or an exception fallback.
+    const empty = new Uint8Array(0);
+    for (const path of a) s.writeb(path, empty, true);
     return 0;
   }
 }
@@ -103,9 +135,7 @@ export class Mkdir extends App {
       if (!p) s.mkdir(x, mode);
       else {
         let q = "";
-        // Stream and traversal modes select the applicable I/O checks and exit paths.
-        //@cg-expect-warning
-        for (const v of norm(x, s.cwd).split("/").filter(Boolean)) { q += `/${v}`; try { s.mkdir(q, mode); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (!(e instanceof KErr) || e.code !== "EEXIST") throw e; } }
+        for (const v of norm(x, s.cwd).split("/").filter(Boolean)) { q += `/${v}`; mkdirIfMissing(s, q, mode); }
       }
     }
     return 0;
@@ -125,14 +155,29 @@ export class Rm extends App {
     const rec = a.some(x => /^-.*r/.test(x)), force = a.some(x => /^-.*f/.test(x));
     const ps = a.filter(x => !x.startsWith("-"));
     if (!ps.length) bad("EINVAL", "rm: missing path");
+    const remove = (p: string): void => {
+      if (s.stat(p, false).kind === "dir") {
+        ensure(rec, () => bad("EISDIR", p));
+        for (const [n] of s.list(p)) go(join(norm(p, s.cwd), n));
+        s.rm(p, true);
+      } else {
+        s.rm(p);
+      }
+    };
     const go = (p: string): void => {
+      if (!force) {
+        // No catch boundary: propagate the original error unchanged.
+        remove(p);
+        return;
+      }
       try {
-        if (s.stat(p, false).kind === "dir") {
-          ensure(rec, () => bad("EISDIR", p));
-          for (const [n] of s.list(p)) go(join(norm(p, s.cwd), n));
-          s.rm(p, true);
-        } else s.rm(p);
-      } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (!force) throw e; }
+        remove(p);
+      }
+      // rm -f intentionally ignores errors at each recursion level and continues with siblings.
+      //@cg-expect-warning
+      catch {
+        // Keep traversing sibling paths after a failed forced removal.
+      }
     };
     for (const p of ps) go(p);
     return 0;
@@ -155,7 +200,7 @@ export class Cp extends App {
       switch (true) {
 case !!(st.kind === "dir"): {
         if (!rec) bad("EISDIR", a0);
-        try { s.mkdir(b0, st.mode); } catch (caughtValue) { const e = caughtValue instanceof Error ? caughtValue : new Error(typeof caughtValue === "undefined" ? "undefined" : String(caughtValue));  if (!(e instanceof KErr) || e.code !== "EEXIST") throw e; }
+        mkdirIfMissing(s, b0, st.mode);
         for (const [n] of s.list(a0)) go(join(norm(a0, s.cwd), n), join(norm(b0, s.cwd), n));
 
 break; }
@@ -218,7 +263,7 @@ export class Chmod extends App {
 
 export class Chown extends App {
   constructor() { super("chown", "Change file owner and group.", "chown uid[:gid] path ..."); }
-  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chown arguments"); const [u = "", g = null] = requireValue(a.shift() ?? null, "src/apps/fs.ts:193").split(":"); const uid = Number(u), gid = g === null ? uid : Number(g); if (!Number.isInteger(uid) || !Number.isInteger(gid)) bad("EINVAL", "numeric ids required"); for (const p of a) s.chown(p, uid, gid); return 0; }
+  override async run(s: Sys, a: string[]): Promise<number> { if (a.length < 2) bad("EINVAL", "chown arguments"); const parts = requireValue(a.shift() ?? null, "chown owner").split(":"); const u = parts[0] ?? "", g = parts[1] ?? null; const uid = Number(u), gid = g === null ? uid : Number(g); if (!Number.isInteger(uid) || !Number.isInteger(gid)) bad("EINVAL", "numeric ids required"); for (const p of a) s.chown(p, uid, gid); return 0; }
 }
 
 export class Find extends App {

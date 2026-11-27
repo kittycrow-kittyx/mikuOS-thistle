@@ -11,3 +11,5 @@ Canonical Thistle owns RV64 syscall integration, sparse guest memory, event poll
 `bun run build` verifies the clean kernel pin and checks architecture, types and browser packaging. `bun src/test/all.ts --hosted-only` checks userspace semantics, actual GNU binaries and kernel object identity. `bun run test:boot` starts the real CLI in a pseudo-terminal, waits for the prompt, runs `which dd`, verifies `/bin/dd`, and copies bytes with the installed GNU dd. It uses the custom base with a fresh temporary overlay.
 
 The boot check runs in CI after the full build and again from a clean checkout. No timing benchmark is involved.
+
+The boot capability contract receives explicit resource limits from the host adapter. Resource discovery is not part of mikuOS-owned boot policy. The pinned release still includes its own implicit defaults; the consolidated upstream candidate removes those defaults before repinning.
