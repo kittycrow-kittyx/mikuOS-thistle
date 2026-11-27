@@ -16,6 +16,6 @@ The boot capability contract reuses Thistle's `KernelOptions` and receives expli
 
 The integration branch pins the exact consolidated Thistle candidate. Its process credentials, descriptor slots, filesystem namespace and guest memory live in canonical native state. Tests change filesystem identity through the native ABI and observe the permission change through mikuOS, then execute RV64 syscall fixtures in that same memory. Object-constructor identity alone is not used as proof.
 
-During startup the login process stays at the root directory until restoration and optional package installation finish. Its configured working directory is then resolved in the restored namespace. This avoids holding an old home-directory inode across a root replacement. Shell redirections retain and restore descriptors through canonical duplication rather than reinstalling expired descriptor views.
+During startup the login process stays at the root directory until restoration and optional package installation finish. Its configured working directory is then resolved in the restored namespace. Thistle rejects root replacement while a process retains a non-root cwd. Shell redirections retain and restore descriptors through canonical duplication.
 
 The current milestone is complete Bake lowering of the canonical kernel and mikuOS userspace. Kernel-only lowering, hosted boot and passing behaviour tests are separate evidence. Transpilation, compilation and performance assessment remain later roadmap stages.

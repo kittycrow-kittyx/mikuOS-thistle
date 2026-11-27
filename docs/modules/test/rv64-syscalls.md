@@ -9,5 +9,4 @@ data address.
 The executable writes syscall results and its data section to an ordinary
 captured descriptor before exiting. Tests inspect that output and a credential
 snapshot, then reap the child. The helper verifies that the child uses the
-kernel's canonical memory. It never installs replacement memory or invokes
-private interpreter methods.
+kernel's canonical memory.
